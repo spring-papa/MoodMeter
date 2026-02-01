@@ -229,8 +229,6 @@
             return;
         }
 
-        const moods = state.data[state.currentTab] || [];
-
         elements.mainContent.innerHTML = `
             <div class="mood-list" role="list">
                 ${moods.map(mood => renderMoodCard(mood)).join('')}
@@ -407,5 +405,10 @@
     }
 
     // Start the app
-    document.addEventListener('DOMContentLoaded', init);
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+    } else {
+        // DOM already loaded
+        init();
+    }
 })();
