@@ -158,6 +158,54 @@ vercel --prod
 1. App Check 활성화 (reCAPTCHA v3)
 2. Authorized domains에 Vercel 도메인 추가
 
+### .vercelignore 관리
+
+`.vercelignore` 파일로 배포에서 제외할 파일을 관리합니다.
+
+**배포에 필요한 파일 (포함)**
+```
+index.html          # 앱 진입점
+js/                 # JavaScript 파일들
+css/                # 스타일시트
+images/             # 감정 이미지
+moodmeter.json      # 감정 데이터
+sw.js               # Service Worker
+```
+
+**배포에 불필요한 파일 (제외)**
+```
+# 문서 파일
+CLAUDE.md           # Claude Code 컨텍스트
+README.md           # GitHub용 문서
+*.md                # 기타 마크다운 문서
+IMPLEMENTATION_*.txt
+
+# 개발 도구
+.claude/            # Claude Code 설정
+.git/               # Git 저장소
+.gitignore
+
+# 시스템 파일
+.DS_Store           # macOS
+```
+
+**새 문서 파일 추가 시**: `.vercelignore`에 해당 파일 추가 필요
+
+```bash
+# .vercelignore 예시
+CLAUDE.md
+README.md
+ANALYTICS_README.md
+TEST_ANALYTICS.md
+IMPLEMENTATION_SUMMARY.md
+IMPLEMENTATION_COMPLETE.txt
+QUICKSTART.md
+.claude/
+.git/
+.gitignore
+.DS_Store
+```
+
 ## 문서
 
 - `QUICKSTART.md` - 빠른 시작 가이드
