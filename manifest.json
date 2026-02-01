@@ -1,0 +1,19 @@
+{
+  "name": "Mood Meter - 감정 인식 교육",
+  "short_name": "Mood Meter",
+  "description": "아이들이 다양한 감정을 이해하고 인식할 수 있도록 돕는 교육용 앱",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#FFD700",
+  "background_color": "#f5f5f5",
+  "icons": [
+    {
+      "src": "icon.png",
+      "sizes": "1024x1024",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

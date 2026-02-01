@@ -1,5 +1,5 @@
 // Service Worker for MoodMeter
-const CACHE_NAME = 'moodmeter-v1';
+const CACHE_NAME = 'moodmeter-v2';
 const IMAGE_CACHE_NAME = 'moodmeter-images-v1';
 const CACHE_DURATION = 30 * 24 * 60 * 60 * 1000; // 30 days in milliseconds
 
@@ -9,7 +9,9 @@ const STATIC_ASSETS = [
     './index.html',
     './css/styles.css',
     './js/app.js',
-    './moodmeter.json'
+    './moodmeter.json',
+    './icon.png',
+    './manifest.json'
 ];
 
 // Install event - cache static assets
