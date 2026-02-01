@@ -278,6 +278,7 @@ body {
 .detail-content {
     flex: 1;
     padding: 16px 0;
+    padding-bottom: 80px; /* Space for fixed button */
 }
 
 .detail-story {
@@ -302,10 +303,12 @@ body {
 }
 
 .detail-toggle-btn {
-    display: block;
-    width: 100%;
+    position: fixed;
+    bottom: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: calc(100% - 32px);
     max-width: 300px;
-    margin: 20px auto 0;
     padding: 14px 24px;
     font-size: 1rem;
     font-weight: 500;
@@ -313,6 +316,8 @@ body {
     border-radius: 25px;
     cursor: pointer;
     transition: all var(--transition-fast);
+    z-index: 90;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 .detail-toggle-btn.yellow {
@@ -337,11 +342,10 @@ body {
 
 .detail-toggle-btn:hover {
     opacity: 0.9;
-    transform: translateY(-1px);
 }
 
 .detail-toggle-btn:active {
-    transform: translateY(0);
+    opacity: 0.8;
 }
 
 /* Loading State */

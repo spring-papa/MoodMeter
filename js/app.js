@@ -138,6 +138,10 @@
         elements.tabBar.classList.remove('hidden');
         elements.headerTitle.textContent = 'Mood Meter';
 
+        // Reset scroll to top
+        window.scrollTo(0, 0);
+        elements.mainContent.scrollTop = 0;
+
         if (state.loading) {
             elements.mainContent.innerHTML = '<div class="loading"></div>';
             return;
@@ -219,6 +223,10 @@
         elements.backBtn.classList.remove('hidden');
         elements.tabBar.classList.add('hidden');
         elements.headerTitle.textContent = state.currentMood.title;
+
+        // Reset scroll to top
+        window.scrollTo(0, 0);
+        elements.mainContent.scrollTop = 0;
 
         const imageUrl = `images/${encodeURIComponent(state.currentMood.key)}.jpg`;
 
