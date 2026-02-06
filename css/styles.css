@@ -66,11 +66,12 @@ body {
 
 /* Header */
 #header {
+    box-sizing: content-box;
     position: fixed;
     top: 0;
     left: 0;
     right: 0;
-    height: var(--header-height);
+    height: var(--header-height-base);
     background-color: var(--color-card-bg);
     box-shadow: var(--shadow-header);
     display: flex;
@@ -84,11 +85,12 @@ body {
 #header::before {
     content: '';
     position: absolute;
+    top: 0;
     left: 50%;
     transform: translateX(-50%);
     width: 100%;
     max-width: var(--max-width);
-    height: 100%;
+    bottom: 0;
     background-color: var(--color-card-bg);
     z-index: -1;
 }
@@ -102,6 +104,7 @@ body {
 .back-btn {
     position: absolute;
     left: 16px;
+    top: var(--safe-area-inset-top);
     background: none;
     border: none;
     padding: 8px;
@@ -279,7 +282,7 @@ body {
     color: var(--color-text-secondary);
     white-space: pre-line;
     display: -webkit-box;
-    -webkit-line-clamp: 2;
+    -webkit-line-clamp: 3;
     -webkit-box-orient: vertical;
     overflow: hidden;
 }
@@ -412,10 +415,6 @@ body {
 
     .mood-card-title {
         font-size: 1.125rem;
-    }
-
-    .mood-card-description {
-        -webkit-line-clamp: 3;
     }
 }
 
