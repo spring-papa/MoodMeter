@@ -104,7 +104,8 @@ body {
 .back-btn {
     position: absolute;
     left: 16px;
-    top: var(--safe-area-inset-top);
+    top: calc(var(--safe-area-inset-top) + (var(--header-height-base) / 2));
+    transform: translateY(-50%);
     background: none;
     border: none;
     padding: 8px;
@@ -282,7 +283,7 @@ body {
     color: var(--color-text-secondary);
     white-space: pre-line;
     display: -webkit-box;
-    -webkit-line-clamp: 3;
+    -webkit-line-clamp: 4;
     -webkit-box-orient: vertical;
     overflow: hidden;
 }
