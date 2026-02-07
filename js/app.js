@@ -2,6 +2,12 @@
 (function() {
     'use strict';
 
+    const DEFAULT_USER_NAME = '봄이';
+    const USER_NAME_MAX_LENGTH = 20;
+    const STORAGE_KEY_USER_NAME = 'moodmeter:userName';
+    const MOOD_TABS = ['yellow', 'green', 'blue', 'red'];
+    const NAV_TABS = [...MOOD_TABS, 'settings'];
+
     // App State
     const state = {
         data: null,
@@ -9,7 +15,8 @@
         currentMood: null,
         showImage: false,
         loading: true,
-        error: null
+        error: null,
+        userName: DEFAULT_USER_NAME
     };
 
     // DOM Elements
@@ -21,14 +28,6 @@
         mainContent: document.getElementById('main-content'),
         tabBar: document.getElementById('tab-bar'),
         tabBtns: document.querySelectorAll('.tab-btn')
-    };
-
-    // Tab names in Korean
-    const tabNames = {
-        yellow: '노랑',
-        green: '초록',
-        blue: '파랑',
-        red: '빨강'
     };
 
     // Initialize App
@@ -45,6 +44,7 @@
             debug: isLocalhost // 로컬에서만 디버그 로그 출력
         });
 
+        loadUserName();
         await loadData();
         setupEventListeners();
         handleRoute();
@@ -55,6 +55,47 @@
             initial_hash: window.location.hash || '#/',
             load_time: Math.round(performance.now() - startTime)
         });
+    }
+
+    function loadUserName() {
+        try {
+            const storedName = localStorage.getItem(STORAGE_KEY_USER_NAME);
+            const normalizedName = normalizeUserName(storedName);
+            state.userName = normalizedName || DEFAULT_USER_NAME;
+        } catch (error) {
+            console.warn('Failed to load user name from localStorage:', error);
+            state.userName = DEFAULT_USER_NAME;
+        }
+    }
+
+    function saveUserName(name) {
+        try {
+            localStorage.setItem(STORAGE_KEY_USER_NAME, name);
+            return true;
+        } catch (error) {
+            console.warn('Failed to save user name to localStorage:', error);
+            return false;
+        }
+    }
+
+    function normalizeUserName(value) {
+        if (typeof value !== 'string') return '';
+        return value.trim().replace(/\s+/g, ' ');
+    }
+
+    function formatMoodContent(content) {
+        if (typeof content !== 'string') return '';
+        return content.split(DEFAULT_USER_NAME).join(state.userName);
+    }
+
+    function escapeHtml(text) {
+        if (typeof text !== 'string') return '';
+        return text
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
     }
 
     // Load mood data
@@ -158,16 +199,25 @@
             state.currentMood = null;
             state.showImage = false;
             renderList();
-        } else if (parts.length === 1 && ['yellow', 'green', 'blue', 'red'].includes(parts[0])) {
-            // List view
+            return;
+        }
+
+        if (parts.length === 1 && NAV_TABS.includes(parts[0])) {
             state.currentTab = parts[0];
             state.currentMood = null;
             state.showImage = false;
-            renderList();
-        } else if (parts.length === 2) {
-            // Detail view
+
+            if (state.currentTab === 'settings') {
+                renderSettings();
+            } else {
+                renderList();
+            }
+            return;
+        }
+
+        if (parts.length === 2) {
             const [tab, key] = parts;
-            if (['yellow', 'green', 'blue', 'red'].includes(tab)) {
+            if (MOOD_TABS.includes(tab)) {
                 state.currentTab = tab;
                 const mood = state.data?.[tab]?.find(m => m.key === key);
                 if (mood) {
@@ -180,9 +230,10 @@
             } else {
                 navigateTo('#/');
             }
-        } else {
-            navigateTo('#/');
+            return;
         }
+
+        navigateTo('#/');
     }
 
     // Update active tab
@@ -242,6 +293,116 @@
         setupMoodCardTracking();
     }
 
+    function renderSettings() {
+        updateActiveTab();
+        elements.backBtn.classList.add('hidden');
+        elements.tabBar.classList.remove('hidden');
+        elements.headerTitle.textContent = '설정';
+
+        Analytics.track('screen_view', {
+            view_type: 'settings',
+            tab: 'settings',
+            screen_name: 'Settings'
+        });
+
+        window.scrollTo(0, 0);
+        elements.mainContent.scrollTop = 0;
+
+        elements.mainContent.innerHTML = `
+            <div class="settings-view">
+                <h2 class="settings-title">사용자 이름 설정</h2>
+                <p class="settings-description">상세 이야기에서 사용할 이름을 입력해 주세요.</p>
+
+                <form class="settings-form" id="settings-form">
+                    <label for="name-input" class="settings-label">이름</label>
+                    <input
+                        id="name-input"
+                        class="settings-input"
+                        type="text"
+                        maxlength="${USER_NAME_MAX_LENGTH}"
+                        placeholder="이름을 입력하세요"
+                        autocomplete="name"
+                        required
+                    >
+                    <p class="settings-hint">최대 ${USER_NAME_MAX_LENGTH}자까지 입력할 수 있어요.</p>
+                    <p id="settings-status" class="settings-status" aria-live="polite"></p>
+
+                    <div class="settings-actions">
+                        <button type="submit" class="settings-btn settings-btn-primary">저장</button>
+                        <button type="button" class="settings-btn settings-btn-secondary" id="name-reset-btn">기본값으로 초기화</button>
+                    </div>
+                </form>
+
+                <p class="settings-preview">현재 적용 이름: <strong id="name-preview"></strong></p>
+            </div>
+        `;
+
+        const form = document.getElementById('settings-form');
+        const input = document.getElementById('name-input');
+        const resetBtn = document.getElementById('name-reset-btn');
+        const status = document.getElementById('settings-status');
+        const preview = document.getElementById('name-preview');
+
+        input.value = state.userName;
+        preview.textContent = state.userName;
+
+        function setStatus(message, isError = false) {
+            status.textContent = message;
+            status.classList.toggle('is-error', isError);
+        }
+
+        form.addEventListener('submit', (event) => {
+            event.preventDefault();
+
+            const normalizedName = normalizeUserName(input.value);
+
+            if (!normalizedName) {
+                setStatus('이름을 입력해 주세요.', true);
+                input.focus();
+                return;
+            }
+
+            if (normalizedName.length > USER_NAME_MAX_LENGTH) {
+                setStatus(`이름은 ${USER_NAME_MAX_LENGTH}자 이하로 입력해 주세요.`, true);
+                input.focus();
+                return;
+            }
+
+            state.userName = normalizedName;
+            input.value = normalizedName;
+            preview.textContent = normalizedName;
+
+            const saved = saveUserName(normalizedName);
+            if (saved) {
+                setStatus('이름이 저장되었어요.');
+            } else {
+                setStatus('저장에 실패했어요. 브라우저 설정을 확인해 주세요.', true);
+            }
+
+            Analytics.track('settings_name_saved', {
+                name_length: normalizedName.length,
+                save_success: saved
+            });
+        });
+
+        resetBtn.addEventListener('click', () => {
+            state.userName = DEFAULT_USER_NAME;
+            input.value = DEFAULT_USER_NAME;
+            preview.textContent = DEFAULT_USER_NAME;
+
+            const saved = saveUserName(DEFAULT_USER_NAME);
+            if (saved) {
+                setStatus('기본 이름으로 초기화했어요.');
+            } else {
+                setStatus('초기화 저장에 실패했어요. 브라우저 설정을 확인해 주세요.', true);
+            }
+
+            Analytics.track('settings_name_reset', {
+                save_success: saved
+            });
+        });
+    }
+
     // Render a mood card
     function renderMoodCard(mood) {
         const imageUrl = `images/${encodeURIComponent(mood.key)}.jpg`;
@@ -293,7 +454,7 @@
     // Setup mood card click tracking
     function setupMoodCardTracking() {
         document.querySelectorAll('.mood-card').forEach((card, index) => {
-            card.addEventListener('click', (e) => {
+            card.addEventListener('click', () => {
                 const href = card.getAttribute('href');
                 const moodKey = href.split('/').pop();
                 const mood = state.data[state.currentTab].find(m => m.key === moodKey);
@@ -331,6 +492,7 @@
         elements.mainContent.scrollTop = 0;
 
         const imageUrl = `images/${encodeURIComponent(state.currentMood.key)}.jpg`;
+        const displayContent = escapeHtml(formatMoodContent(state.currentMood.content));
 
         if (state.showImage) {
             elements.mainContent.innerHTML = `
@@ -352,7 +514,7 @@
             elements.mainContent.innerHTML = `
                 <div class="detail-view">
                     <div class="detail-content">
-                        <p class="detail-story">${state.currentMood.content}</p>
+                        <p class="detail-story">${displayContent}</p>
                     </div>
                     <button class="detail-toggle-btn ${state.currentTab}"
                             aria-label="이미지 보기">

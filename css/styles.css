@@ -167,7 +167,7 @@ body {
 
 .tab-btn {
     flex: 1;
-    max-width: calc(var(--max-width) / 4);
+    max-width: calc(var(--max-width) / 5);
     height: var(--tab-bar-height-base);
     min-height: 44px;
     border: none;
@@ -196,6 +196,7 @@ body {
 .tab-btn[data-tab="green"]::after { background-color: var(--color-green); }
 .tab-btn[data-tab="blue"]::after { background-color: var(--color-blue); }
 .tab-btn[data-tab="red"]::after { background-color: var(--color-red); }
+.tab-btn[data-tab="settings"]::after { background-color: #757575; }
 
 .tab-btn.active {
     font-weight: 600;
@@ -205,6 +206,7 @@ body {
 .tab-btn[data-tab="green"].active { color: var(--color-green); }
 .tab-btn[data-tab="blue"].active { color: var(--color-blue); }
 .tab-btn[data-tab="red"].active { color: var(--color-red); }
+.tab-btn[data-tab="settings"].active { color: #4a4a4a; }
 
 .tab-btn.active::after {
     width: 40px;
@@ -403,6 +405,89 @@ body {
     margin-bottom: 8px;
 }
 
+/* Settings View */
+.settings-view {
+    max-width: 480px;
+    margin: 0 auto;
+    background-color: var(--color-card-bg);
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: var(--shadow-card);
+}
+
+.settings-title {
+    font-size: 1.125rem;
+    margin-bottom: 8px;
+}
+
+.settings-description {
+    color: var(--color-text-secondary);
+    margin-bottom: 16px;
+}
+
+.settings-form {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.settings-label {
+    font-weight: 600;
+}
+
+.settings-input {
+    width: 100%;
+    border: 1px solid var(--color-border);
+    border-radius: 10px;
+    padding: 12px;
+    font-size: 1rem;
+}
+
+.settings-hint {
+    font-size: 0.875rem;
+    color: var(--color-text-secondary);
+}
+
+.settings-status {
+    min-height: 24px;
+    color: var(--color-green);
+    font-size: 0.9375rem;
+}
+
+.settings-status.is-error {
+    color: var(--color-red);
+}
+
+.settings-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 4px;
+}
+
+.settings-btn {
+    border: none;
+    border-radius: 10px;
+    padding: 12px;
+    font-size: 1rem;
+    cursor: pointer;
+}
+
+.settings-btn-primary {
+    background-color: #4a4a4a;
+    color: #fff;
+}
+
+.settings-btn-secondary {
+    background-color: #f0f0f0;
+    color: #333;
+}
+
+.settings-preview {
+    margin-top: 16px;
+    color: var(--color-text-secondary);
+}
+
 /* Responsive */
 @media (min-width: 480px) {
     .mood-card-image-wrapper {
@@ -450,7 +535,9 @@ body {
 .tab-btn:focus-visible,
 .mood-card:focus-visible,
 .back-btn:focus-visible,
-.detail-toggle-btn:focus-visible {
+.detail-toggle-btn:focus-visible,
+.settings-input:focus-visible,
+.settings-btn:focus-visible {
     outline: 2px solid var(--color-blue);
     outline-offset: 2px;
 }
