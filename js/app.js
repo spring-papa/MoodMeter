@@ -98,6 +98,10 @@
             .replace(/'/g, '&#39;');
     }
 
+    function trackSettingsAction(params) {
+        Analytics.track('settings_action_click', params);
+    }
+
     // Load mood data
     async function loadData() {
         try {
@@ -144,6 +148,13 @@
                     from_tab: state.currentTab,
                     to_tab: tab
                 });
+
+                if (tab === 'settings') {
+                    Analytics.track('settings_tab_click', {
+                        from_tab: state.currentTab,
+                        to_tab: 'settings'
+                    });
+                }
 
                 navigateTo(`#/${tab}`);
             });
@@ -357,12 +368,30 @@
             const normalizedName = normalizeUserName(input.value);
 
             if (!normalizedName) {
+                trackSettingsAction({
+                    setting_key: 'display_name',
+                    action_type: 'save',
+                    input_method: 'button',
+                    result: 'validation_error',
+                    value_type: 'string',
+                    value_length: 0,
+                    is_default_name: false
+                });
                 setStatus('이름을 입력해 주세요.', true);
                 input.focus();
                 return;
             }
 
             if (normalizedName.length > USER_NAME_MAX_LENGTH) {
+                trackSettingsAction({
+                    setting_key: 'display_name',
+                    action_type: 'save',
+                    input_method: 'button',
+                    result: 'validation_error',
+                    value_type: 'string',
+                    value_length: normalizedName.length,
+                    is_default_name: false
+                });
                 setStatus(`이름은 ${USER_NAME_MAX_LENGTH}자 이하로 입력해 주세요.`, true);
                 input.focus();
                 return;
@@ -379,9 +408,14 @@
                 setStatus('저장에 실패했어요. 브라우저 설정을 확인해 주세요.', true);
             }
 
-            Analytics.track('settings_name_saved', {
-                name_length: normalizedName.length,
-                save_success: saved
+            trackSettingsAction({
+                setting_key: 'display_name',
+                action_type: 'save',
+                input_method: 'button',
+                result: saved ? 'success' : 'fail',
+                value_type: 'string',
+                value_length: normalizedName.length,
+                is_default_name: normalizedName === DEFAULT_USER_NAME
             });
         });
 
@@ -397,8 +431,14 @@
                 setStatus('초기화 저장에 실패했어요. 브라우저 설정을 확인해 주세요.', true);
             }
 
-            Analytics.track('settings_name_reset', {
-                save_success: saved
+            trackSettingsAction({
+                setting_key: 'display_name',
+                action_type: 'reset',
+                input_method: 'button',
+                result: saved ? 'success' : 'fail',
+                value_type: 'string',
+                value_length: DEFAULT_USER_NAME.length,
+                is_default_name: true
             });
         });
     }

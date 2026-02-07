@@ -6,6 +6,7 @@
 
 아이들이 다양한 감정을 이해하고 인식할 수 있도록 돕는 교육용 앱입니다.
 4가지 색상 카테고리(노랑/초록/파랑/빨강)로 감정을 분류하고, 각 감정에 대한 이야기와 이미지를 제공합니다.
+설정 탭에서 사용자 이름을 변경하면 상세 이야기의 고정 이름("봄이")이 사용자 입력값으로 치환됩니다.
 
 ## 기술 스택
 
@@ -49,16 +50,18 @@ open http://localhost:8000
 ### 라우팅 (Hash-based)
 - `#/` 또는 `#/yellow` → 리스트 뷰
 - `#/yellow/joyful` → 상세 뷰
+- `#/settings` → 설정 뷰 (사용자 이름 입력/저장)
 
 ### 상태 관리 (js/app.js)
 ```javascript
 const state = {
     data: null,           // moodmeter.json 데이터
-    currentTab: 'yellow', // 현재 탭 (yellow/green/blue/red)
+    currentTab: 'yellow', // 현재 탭 (yellow/green/blue/red/settings)
     currentMood: null,    // 현재 선택된 감정 객체
     showImage: false,     // 이야기/이미지 토글 상태
     loading: true,
-    error: null
+    error: null,
+    userName: '봄이'      // localStorage 기반 사용자 이름
 };
 ```
 
@@ -69,10 +72,13 @@ const state = {
 | green | 초록 | 차분한/안정된 감정 |
 | blue | 파랑 | 슬픈/우울한 감정 |
 | red | 빨강 | 화난/격한 감정 |
+| settings | 회색 | 사용자 설정 (이름 변경) |
 
 ### Analytics 이벤트
-- `screen_view` - 화면 조회 (리스트/상세)
+- `screen_view` - 화면 조회 (리스트/상세/설정)
 - `tab_click` - 탭 전환
+- `settings_tab_click` - 설정 탭 클릭
+- `settings_action_click` - 설정 액션 클릭(저장/초기화 등 공통 스키마)
 - `mood_card_click` - 감정 카드 클릭
 - `content_toggle` - 이야기/이미지 토글
 - `app_loaded`, `data_loaded` - 앱 생명주기
@@ -120,15 +126,23 @@ const state = {
 - 경로: `images/{key}.jpg`
 - 예: `images/joyful.jpg`
 
+### 사용자 설정 저장소
+- localStorage key: `moodmeter:userName`
+- 기본값: `봄이`
+- 상세 콘텐츠 렌더링 시 `content` 문자열의 `봄이`를 현재 사용자 이름으로 치환
+
 ## 주요 함수 (js/app.js)
 
 | 함수 | 설명 |
 |------|------|
 | `init()` | 앱 초기화 (Analytics, 데이터 로드, 이벤트 설정) |
+| `loadUserName()` | localStorage에서 사용자 이름 로드 |
 | `loadData()` | moodmeter.json 로드 |
 | `handleRoute()` | URL 해시 기반 라우팅 |
 | `renderList()` | 감정 카드 목록 렌더링 |
 | `renderDetail()` | 감정 상세 뷰 렌더링 |
+| `renderSettings()` | 설정 화면 렌더링/저장/초기화 처리 |
+| `formatMoodContent()` | 상세 콘텐츠의 이름 치환 |
 | `setupLazyLoading()` | 이미지 지연 로딩 (IntersectionObserver) |
 
 ## Analytics 모듈 (js/analytics.js)
