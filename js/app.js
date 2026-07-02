@@ -308,7 +308,8 @@
                 selectedMoodId: null,
                 answered: false,
                 correct: false,
-                showStory: false
+                showStory: false,
+                showResultStory: false
             };
         });
 
@@ -1011,20 +1012,18 @@
 
         elements.mainContent.innerHTML = `
             <div class="discover-view constellation-view">
+                <div class="constellation-actions">
+                    <button type="button" class="discover-secondary-btn" id="discover-edit-btn">감정 다시 고르기</button>
+                    <button type="button" class="discover-danger-btn" id="discover-delete-btn">삭제</button>
+                </div>
                 ${renderEmotionConstellation(hydratedDiscovery)}
                 <div class="constellation-meta">
                     <time datetime="${escapeHtml(discovery.createdAt)}">${formatDate(discovery.createdAt)}</time>
                     <p>${hydratedDiscovery.moods.length}개의 마음을 알아봤어요.</p>
                 </div>
-                <div class="constellation-actions">
-                    <button type="button" class="discover-secondary-btn" id="discover-list-btn">목록으로</button>
-                    <button type="button" class="discover-secondary-btn" id="discover-edit-btn">감정 다시 고르기</button>
-                    <button type="button" class="discover-danger-btn" id="discover-delete-btn">삭제</button>
-                </div>
             </div>
         `;
 
-        document.getElementById('discover-list-btn').addEventListener('click', () => navigateTo('#/discover'));
         document.getElementById('discover-edit-btn').addEventListener('click', () => {
             resetDiscoverDraft(discovery);
             navigateTo(`#/discover/${discovery.id}/edit`);
@@ -1235,7 +1234,7 @@
                 </section>
                 ${wrongQuestions.length ? `
                     <div class="quiz-review-list">
-                        ${wrongQuestions.map(question => renderQuizReviewCard(question.mood, false)).join('')}
+                        ${wrongQuestions.map(question => renderQuizReviewCard(question.mood, question.showResultStory)).join('')}
                     </div>
                 ` : ''}
             </div>
@@ -1248,6 +1247,17 @@
 
         document.getElementById('quiz-review-result-btn').addEventListener('click', () => {
             if (getWrongQuizMoods().length) navigateTo('#/quiz/review');
+        });
+
+        elements.mainContent.querySelectorAll('[data-review-toggle]').forEach(button => {
+            button.addEventListener('click', () => {
+                const moodId = button.dataset.reviewToggle;
+                const targetQuestion = wrongQuestions.find(question => question.mood.moodId === moodId);
+                if (!targetQuestion) return;
+
+                targetQuestion.showResultStory = !targetQuestion.showResultStory;
+                renderQuizResult();
+            });
         });
     }
 
