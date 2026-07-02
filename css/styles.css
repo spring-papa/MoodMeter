@@ -99,15 +99,21 @@ body {
     font-size: 1.25rem;
     font-weight: 600;
     text-align: center;
+    max-width: calc(100% - 112px);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
-.back-btn {
+.back-btn,
+.settings-header-btn {
     position: absolute;
-    left: 16px;
     top: calc(var(--safe-area-inset-top) + (var(--header-height-base) / 2));
     transform: translateY(-50%);
     background: none;
     border: none;
+    width: 44px;
+    height: 44px;
     padding: 8px;
     cursor: pointer;
     color: var(--color-text);
@@ -118,11 +124,21 @@ body {
     transition: background-color var(--transition-fast);
 }
 
-.back-btn:hover {
+.back-btn {
+    left: 16px;
+}
+
+.settings-header-btn {
+    right: 16px;
+}
+
+.back-btn:hover,
+.settings-header-btn:hover {
     background-color: var(--color-border);
 }
 
-.back-btn.hidden {
+.back-btn.hidden,
+.settings-header-btn.hidden {
     display: none;
 }
 
@@ -167,7 +183,7 @@ body {
 
 .tab-btn {
     flex: 1;
-    max-width: calc(var(--max-width) / 5);
+    max-width: calc(var(--max-width) / 4);
     height: var(--tab-bar-height-base);
     min-height: 44px;
     border: none;
@@ -196,7 +212,6 @@ body {
 .tab-btn[data-tab="green"]::after { background-color: var(--color-green); }
 .tab-btn[data-tab="blue"]::after { background-color: var(--color-blue); }
 .tab-btn[data-tab="red"]::after { background-color: var(--color-red); }
-.tab-btn[data-tab="settings"]::after { background-color: #757575; }
 
 .tab-btn.active {
     font-weight: 600;
@@ -206,7 +221,6 @@ body {
 .tab-btn[data-tab="green"].active { color: var(--color-green); }
 .tab-btn[data-tab="blue"].active { color: var(--color-blue); }
 .tab-btn[data-tab="red"].active { color: var(--color-red); }
-.tab-btn[data-tab="settings"].active { color: #4a4a4a; }
 
 .tab-btn.active::after {
     width: 40px;
@@ -535,6 +549,7 @@ body {
 .tab-btn:focus-visible,
 .mood-card:focus-visible,
 .back-btn:focus-visible,
+.settings-header-btn:focus-visible,
 .detail-toggle-btn:focus-visible,
 .settings-input:focus-visible,
 .settings-btn:focus-visible {

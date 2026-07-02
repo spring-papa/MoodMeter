@@ -6,7 +6,6 @@
     const USER_NAME_MAX_LENGTH = 20;
     const STORAGE_KEY_USER_NAME = 'moodmeter:userName';
     const MOOD_TABS = ['yellow', 'green', 'blue', 'red'];
-    const NAV_TABS = [...MOOD_TABS, 'settings'];
 
     // App State
     const state = {
@@ -25,6 +24,7 @@
         header: document.getElementById('header'),
         headerTitle: document.getElementById('header-title'),
         backBtn: document.getElementById('back-btn'),
+        settingsBtn: document.getElementById('settings-btn'),
         mainContent: document.getElementById('main-content'),
         tabBar: document.getElementById('tab-bar'),
         tabBtns: document.querySelectorAll('.tab-btn')
@@ -106,6 +106,11 @@
             });
         });
 
+        // Header settings button
+        elements.settingsBtn.addEventListener('click', () => {
+            navigateTo('#/settings');
+        });
+
         // Back button
         elements.backBtn.addEventListener('click', () => {
             navigateTo(`#/${state.currentTab}`);
@@ -141,16 +146,18 @@
             return;
         }
 
-        if (parts.length === 1 && NAV_TABS.includes(parts[0])) {
+        if (parts.length === 1 && MOOD_TABS.includes(parts[0])) {
             state.currentTab = parts[0];
             state.currentMood = null;
             state.showImage = false;
+            renderList();
+            return;
+        }
 
-            if (state.currentTab === 'settings') {
-                renderSettings();
-            } else {
-                renderList();
-            }
+        if (parts.length === 1 && parts[0] === 'settings') {
+            state.currentMood = null;
+            state.showImage = false;
+            renderSettings();
             return;
         }
 
@@ -188,6 +195,7 @@
     function renderList() {
         updateActiveTab();
         elements.backBtn.classList.add('hidden');
+        elements.settingsBtn.classList.remove('hidden');
         elements.tabBar.classList.remove('hidden');
         elements.headerTitle.textContent = 'Mood Meter';
 
@@ -224,7 +232,8 @@
 
     function renderSettings() {
         updateActiveTab();
-        elements.backBtn.classList.add('hidden');
+        elements.backBtn.classList.remove('hidden');
+        elements.settingsBtn.classList.add('hidden');
         elements.tabBar.classList.remove('hidden');
         elements.headerTitle.textContent = '설정';
 
@@ -369,6 +378,7 @@
     function renderDetail() {
         updateActiveTab();
         elements.backBtn.classList.remove('hidden');
+        elements.settingsBtn.classList.add('hidden');
         elements.tabBar.classList.add('hidden');
         elements.headerTitle.textContent = state.currentMood.title;
 
