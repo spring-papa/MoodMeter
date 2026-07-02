@@ -6,6 +6,9 @@
     const USER_NAME_MAX_LENGTH = 20;
     const STORAGE_KEY_USER_NAME = 'moodmeter:userName';
     const STORAGE_KEY_DISCOVERIES = 'moodmeter:discoveries';
+    const STORAGE_KEY_QUIZ_STATS = 'moodmeter:quizStats';
+    const QUIZ_QUESTION_COUNT_PER_TAB = 2;
+    const QUIZ_OPTION_COUNT = 4;
     const MOOD_TABS = ['yellow', 'green', 'blue', 'red'];
     const NAV_TABS = ['discover', ...MOOD_TABS];
     const TAB_LABELS = {
@@ -25,6 +28,9 @@
         error: null,
         userName: DEFAULT_USER_NAME,
         discoveries: [],
+        quizStats: {},
+        quizSession: null,
+        quizReviewExpandedMoodId: null,
         discoverDraft: {
             target: '',
             selectedMoodKeys: [],
@@ -41,6 +47,7 @@
         header: document.getElementById('header'),
         headerTitle: document.getElementById('header-title'),
         backBtn: document.getElementById('back-btn'),
+        quizBtn: document.getElementById('quiz-btn'),
         settingsBtn: document.getElementById('settings-btn'),
         mainContent: document.getElementById('main-content'),
         tabBar: document.getElementById('tab-bar'),
@@ -51,6 +58,7 @@
     async function init() {
         loadUserName();
         state.discoveries = loadDiscoveries();
+        state.quizStats = loadQuizStats();
         await loadData();
         setupEventListeners();
         handleRoute();
@@ -122,6 +130,78 @@
             console.warn('Failed to save mood discoveries to localStorage:', error);
             return false;
         }
+    }
+
+    function loadQuizStats() {
+        try {
+            const rawStats = localStorage.getItem(STORAGE_KEY_QUIZ_STATS);
+            if (!rawStats) return {};
+
+            const parsedStats = JSON.parse(rawStats);
+            if (!parsedStats || typeof parsedStats !== 'object' || Array.isArray(parsedStats)) return {};
+
+            return Object.entries(parsedStats).reduce((stats, [moodId, record]) => {
+                if (!record || typeof record !== 'object') return stats;
+
+                stats[moodId] = normalizeQuizStat(record);
+                return stats;
+            }, {});
+        } catch (error) {
+            console.warn('Failed to load quiz stats from localStorage:', error);
+            return {};
+        }
+    }
+
+    function saveQuizStats() {
+        try {
+            localStorage.setItem(STORAGE_KEY_QUIZ_STATS, JSON.stringify(state.quizStats));
+            return true;
+        } catch (error) {
+            console.warn('Failed to save quiz stats to localStorage:', error);
+            return false;
+        }
+    }
+
+    function normalizeQuizStat(record = {}) {
+        return {
+            shown: Number.isFinite(record.shown) ? Math.max(0, record.shown) : 0,
+            correct: Number.isFinite(record.correct) ? Math.max(0, record.correct) : 0,
+            wrong: Number.isFinite(record.wrong) ? Math.max(0, record.wrong) : 0,
+            lastShownAt: typeof record.lastShownAt === 'string' ? record.lastShownAt : '',
+            lastAnsweredAt: typeof record.lastAnsweredAt === 'string' ? record.lastAnsweredAt : '',
+            lastWrongAt: typeof record.lastWrongAt === 'string' ? record.lastWrongAt : ''
+        };
+    }
+
+    function getQuizStat(moodId) {
+        if (!state.quizStats[moodId]) {
+            state.quizStats[moodId] = normalizeQuizStat();
+        }
+
+        return state.quizStats[moodId];
+    }
+
+    function recordQuizShown(moods) {
+        const now = new Date().toISOString();
+        moods.forEach(mood => {
+            const stat = getQuizStat(mood.moodId);
+            stat.shown += 1;
+            stat.lastShownAt = now;
+        });
+        saveQuizStats();
+    }
+
+    function recordQuizAnswer(mood, isCorrect) {
+        const stat = getQuizStat(mood.moodId);
+        const now = new Date().toISOString();
+        if (isCorrect) {
+            stat.correct += 1;
+        } else {
+            stat.wrong += 1;
+            stat.lastWrongAt = now;
+        }
+        stat.lastAnsweredAt = now;
+        saveQuizStats();
     }
 
     function createDiscovery(target, selectedMoods) {
@@ -216,6 +296,111 @@
         };
     }
 
+    function createQuizSession() {
+        const allMoods = getAllMoodsWithTabs();
+        const questions = shuffleArray(MOOD_TABS.flatMap(tab => {
+            const moods = allMoods.filter(mood => mood.tab === tab);
+            return pickBalancedRandomMoods(moods, QUIZ_QUESTION_COUNT_PER_TAB);
+        })).map(mood => {
+            return {
+                mood,
+                options: createQuizOptions(mood, allMoods),
+                selectedMoodId: null,
+                answered: false,
+                correct: false,
+                showStory: false
+            };
+        });
+
+        recordQuizShown(questions.map(question => question.mood));
+
+        state.quizSession = {
+            questions,
+            currentIndex: 0,
+            startedAt: new Date().toISOString(),
+            completed: false
+        };
+    }
+
+    function pickBalancedRandomMoods(moods, count) {
+        const available = [...moods];
+        const selected = [];
+
+        while (selected.length < count && available.length) {
+            const lowestShown = Math.min(...available.map(mood => getQuizStat(mood.moodId).shown));
+            const balancedPool = available.filter(mood => getQuizStat(mood.moodId).shown <= lowestShown + 1);
+            const picked = balancedPool[Math.floor(Math.random() * balancedPool.length)];
+            selected.push(picked);
+            available.splice(available.findIndex(mood => mood.moodId === picked.moodId), 1);
+        }
+
+        return selected;
+    }
+
+    function createQuizOptions(correctMood, allMoods) {
+        const sameTabDistractors = shuffleArray(allMoods.filter(mood => {
+            return mood.tab === correctMood.tab && mood.moodId !== correctMood.moodId;
+        }));
+        const otherDistractors = shuffleArray(allMoods.filter(mood => {
+            return mood.tab !== correctMood.tab && mood.moodId !== correctMood.moodId;
+        }));
+        const distractors = [...sameTabDistractors.slice(0, 2), ...otherDistractors]
+            .filter((mood, index, array) => array.findIndex(item => item.moodId === mood.moodId) === index)
+            .slice(0, QUIZ_OPTION_COUNT - 1);
+
+        return shuffleArray([correctMood, ...distractors]);
+    }
+
+    function shuffleArray(items) {
+        const shuffled = [...items];
+        for (let index = shuffled.length - 1; index > 0; index -= 1) {
+            const randomIndex = Math.floor(Math.random() * (index + 1));
+            [shuffled[index], shuffled[randomIndex]] = [shuffled[randomIndex], shuffled[index]];
+        }
+        return shuffled;
+    }
+
+    function getWrongQuizMoods() {
+        return getAllMoodsWithTabs()
+            .filter(mood => getQuizStat(mood.moodId).wrong > 0)
+            .sort((a, b) => {
+                const aStat = getQuizStat(a.moodId);
+                const bStat = getQuizStat(b.moodId);
+                return (bStat.lastWrongAt || '').localeCompare(aStat.lastWrongAt || '')
+                    || bStat.wrong - aStat.wrong;
+            });
+    }
+
+    function getQuizQuestionPrompt(mood) {
+        const displayTitle = getMoodDisplayTitle(mood.title);
+        const escapedTitle = escapeRegExp(mood.title);
+        const escapedDisplayTitle = escapeRegExp(displayTitle);
+        const answerLeadPattern = new RegExp(
+            `^\\s*(?:${escapedTitle}|${escapedDisplayTitle}\\s*마음|${escapedDisplayTitle})\\s*은\\s*`,
+            'u'
+        );
+        const clue = formatMoodContent(mood.description)
+            .replace(answerLeadPattern, '')
+            .trim();
+
+        return clue || '그림과 이야기를 살펴보고 어울리는 감정을 골라 보세요.';
+    }
+
+    function getQuizStoryPrompt(mood) {
+        const displayTitle = getMoodDisplayTitle(mood.title);
+        const maskedStory = formatMoodContent(mood.content)
+            .replace(new RegExp(`${escapeRegExp(displayTitle)}\\s*마음`, 'gu'), '이런 마음')
+            .replace(new RegExp(escapeRegExp(mood.title), 'gu'), '이런 마음')
+            .replace(new RegExp(escapeRegExp(displayTitle), 'gu'), '이런')
+            .replace(/이런 마음이라고 해요\./gu, '어떤 마음인지 골라 보세요.');
+
+        return maskedStory;
+    }
+
+    function escapeRegExp(value) {
+        return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+
     function formatDate(dateString) {
         const date = new Date(dateString);
         if (Number.isNaN(date.getTime())) return '';
@@ -269,8 +454,17 @@
             navigateTo('#/settings');
         });
 
+        elements.quizBtn.addEventListener('click', () => {
+            navigateTo('#/quiz');
+        });
+
         // Back button
         elements.backBtn.addEventListener('click', () => {
+            if (state.currentTab === 'quiz') {
+                navigateTo('#/quiz');
+                return;
+            }
+
             if (state.currentTab === 'discover') {
                 navigateTo('#/discover');
                 return;
@@ -291,6 +485,10 @@
 
             if (e.key === 'Escape' && state.currentMood) {
                 navigateTo(`#/${state.currentTab}`);
+            }
+
+            if (e.key === 'Escape' && state.currentTab === 'quiz') {
+                navigateTo('#/quiz');
             }
         });
     }
@@ -319,6 +517,30 @@
             state.currentMood = null;
             state.showImage = false;
             renderList();
+            return;
+        }
+
+        if (parts[0] === 'quiz') {
+            state.currentTab = 'quiz';
+            state.currentMood = null;
+            state.showImage = false;
+
+            if (parts.length === 1) {
+                renderQuizIntro();
+                return;
+            }
+
+            if (parts.length === 2 && parts[1] === 'play') {
+                renderQuizPlay();
+                return;
+            }
+
+            if (parts.length === 2 && parts[1] === 'review') {
+                renderQuizReview();
+                return;
+            }
+
+            navigateTo('#/quiz');
             return;
         }
 
@@ -401,6 +623,7 @@
     function renderList() {
         updateActiveTab();
         elements.backBtn.classList.add('hidden');
+        elements.quizBtn.classList.remove('hidden');
         elements.settingsBtn.classList.remove('hidden');
         elements.tabBar.classList.remove('hidden');
         elements.headerTitle.textContent = 'Mood Meter';
@@ -439,6 +662,7 @@
     function prepareDiscoverShell(title, showBack = false, resetScroll = true) {
         updateActiveTab();
         elements.backBtn.classList.toggle('hidden', !showBack);
+        elements.quizBtn.classList.toggle('hidden', showBack);
         elements.settingsBtn.classList.remove('hidden');
         elements.tabBar.classList.remove('hidden');
         elements.headerTitle.textContent = title;
@@ -816,6 +1040,265 @@
         });
     }
 
+    function prepareQuizShell(title, showBack = false, showTabBar = false) {
+        updateActiveTab();
+        elements.backBtn.classList.toggle('hidden', !showBack);
+        elements.quizBtn.classList.add('hidden');
+        elements.settingsBtn.classList.add('hidden');
+        elements.tabBar.classList.toggle('hidden', !showTabBar);
+        elements.headerTitle.textContent = title;
+        window.scrollTo(0, 0);
+        elements.mainContent.scrollTop = 0;
+    }
+
+    function renderQuizIntro() {
+        prepareQuizShell('감정 퀴즈', false, true);
+
+        const wrongMoods = getWrongQuizMoods();
+
+        elements.mainContent.innerHTML = `
+            <div class="quiz-view quiz-intro">
+                <section class="quiz-card quiz-landing-card">
+                    <div class="quiz-card-sky" aria-hidden="true">
+                        <span>마음 탐험</span>
+                        <span>생각 톡톡</span>
+                        <span>그림 단서</span>
+                    </div>
+                    <p class="quiz-kicker">색깔마다 2개씩</p>
+                    <h2 class="quiz-title">그림 속 마음을 찾아볼까요?</h2>
+                    <p class="quiz-description">그림과 짧은 단서를 보고 어울리는 감정을 골라요. 몰랐던 감정은 나중에 다시 살펴볼 수 있어요.</p>
+                    <div class="quiz-intro-actions">
+                        <button type="button" class="quiz-primary-btn" id="quiz-start-btn">시작</button>
+                        <button type="button" class="quiz-secondary-btn" id="quiz-review-btn" ${wrongMoods.length ? '' : 'disabled'}>몰랐던 감정들 다시 보기</button>
+                    </div>
+                </section>
+            </div>
+        `;
+
+        document.getElementById('quiz-start-btn').addEventListener('click', () => {
+            createQuizSession();
+            navigateTo('#/quiz/play');
+        });
+
+        document.getElementById('quiz-review-btn').addEventListener('click', () => {
+            if (wrongMoods.length) navigateTo('#/quiz/review');
+        });
+    }
+
+    function renderQuizPlay() {
+        if (!state.quizSession?.questions?.length) {
+            createQuizSession();
+        }
+
+        prepareQuizShell('감정 퀴즈', true, false);
+
+        const session = state.quizSession;
+        const question = session.questions[session.currentIndex];
+
+        if (!question) {
+            renderQuizResult();
+            return;
+        }
+
+        const questionNumber = session.currentIndex + 1;
+        const imageUrl = `images/${encodeURIComponent(question.mood.key)}.jpg`;
+        const questionPrompt = getQuizQuestionPrompt(question.mood);
+
+        elements.mainContent.innerHTML = `
+            <div class="quiz-view">
+                <div class="quiz-progress" aria-label="퀴즈 진행">
+                    <span>${questionNumber} / ${session.questions.length}</span>
+                    <div class="quiz-progress-track">
+                        <div class="quiz-progress-fill" style="width: ${(questionNumber / session.questions.length) * 100}%"></div>
+                    </div>
+                </div>
+                <section class="quiz-question-card ${question.mood.tab}">
+                    <div class="quiz-question-image-wrap">
+                        <img class="quiz-question-image" src="${imageUrl}" alt="감정 퀴즈 그림">
+                    </div>
+                    <div class="quiz-question-copy">
+                        <p class="quiz-question-label">어떤 마음일까요?</p>
+                        <p class="quiz-question-description">${escapeHtml(questionPrompt)}</p>
+                        <button type="button" class="quiz-story-toggle" id="quiz-story-toggle">
+                            ${question.showStory ? '이야기 접기' : '자세한 이야기 보기'}
+                        </button>
+                        ${question.showStory ? `
+                            <div class="quiz-story-panel">
+                                <p>${escapeHtml(getQuizStoryPrompt(question.mood))}</p>
+                            </div>
+                        ` : ''}
+                    </div>
+                </section>
+                <div class="quiz-options" role="list">
+                    ${question.options.map(option => renderQuizOption(question, option)).join('')}
+                </div>
+                ${question.answered ? renderQuizFeedback(question) : ''}
+            </div>
+        `;
+
+        elements.mainContent.querySelectorAll('[data-quiz-option]').forEach(button => {
+            button.addEventListener('click', () => {
+                answerQuizQuestion(button.dataset.quizOption);
+            });
+        });
+
+        const storyToggleBtn = document.getElementById('quiz-story-toggle');
+        if (storyToggleBtn) {
+            storyToggleBtn.addEventListener('click', () => {
+                question.showStory = !question.showStory;
+                renderQuizPlay();
+            });
+        }
+
+        const nextBtn = document.getElementById('quiz-next-btn');
+        if (nextBtn) {
+            nextBtn.addEventListener('click', () => {
+                if (session.currentIndex >= session.questions.length - 1) {
+                    session.completed = true;
+                    renderQuizResult();
+                    return;
+                }
+
+                session.currentIndex += 1;
+                renderQuizPlay();
+            });
+        }
+    }
+
+    function renderQuizOption(question, option) {
+        const isSelected = question.selectedMoodId === option.moodId;
+        const isCorrect = option.moodId === question.mood.moodId;
+        const resultClass = question.answered && isCorrect
+            ? 'is-correct'
+            : question.answered && isSelected
+                ? 'is-wrong'
+                : '';
+
+        return `
+            <button type="button"
+                    class="quiz-option ${option.tab} ${resultClass}"
+                    data-quiz-option="${option.moodId}"
+                    ${question.answered ? 'disabled' : ''}
+                    role="listitem">
+                ${escapeHtml(getMoodDisplayTitle(option.title))}
+            </button>
+        `;
+    }
+
+    function renderQuizFeedback(question) {
+        const message = question.correct
+            ? '맞았어요!'
+            : `이 감정은 ${escapeHtml(question.mood.title)}이에요.`;
+
+        return `
+            <div class="quiz-feedback-backdrop" role="presentation">
+                <section class="quiz-feedback ${question.correct ? 'correct' : 'wrong'}" role="dialog" aria-modal="true" aria-live="polite" aria-label="퀴즈 결과">
+                    <p class="quiz-feedback-kicker">${question.correct ? '좋아요' : '새로 알았어요'}</p>
+                    <p class="quiz-feedback-message">${message}</p>
+                    <button type="button" class="quiz-primary-btn" id="quiz-next-btn">
+                        ${state.quizSession.currentIndex >= state.quizSession.questions.length - 1 ? '결과 보기' : '다음 문제'}
+                    </button>
+                </section>
+            </div>
+        `;
+    }
+
+    function answerQuizQuestion(selectedMoodId) {
+        const session = state.quizSession;
+        const question = session?.questions?.[session.currentIndex];
+        if (!question || question.answered) return;
+
+        question.selectedMoodId = selectedMoodId;
+        question.answered = true;
+        question.correct = selectedMoodId === question.mood.moodId;
+        recordQuizAnswer(question.mood, question.correct);
+        renderQuizPlay();
+    }
+
+    function renderQuizResult() {
+        prepareQuizShell('퀴즈 결과', true, false);
+
+        const session = state.quizSession;
+        const questions = session?.questions || [];
+        const wrongQuestions = questions.filter(question => question.answered && !question.correct);
+
+        elements.mainContent.innerHTML = `
+            <div class="quiz-view">
+                <section class="quiz-card quiz-result-card">
+                    <p class="quiz-kicker">완료</p>
+                    <h2 class="quiz-title">마음 탐험을 마쳤어요.</h2>
+                    <p class="quiz-description">${wrongQuestions.length ? '몰랐던 감정은 아래에서 바로 다시 볼 수 있어요.' : '이번 퀴즈에서 새로 볼 감정은 없어요.'}</p>
+                    <div class="quiz-intro-actions">
+                        <button type="button" class="quiz-primary-btn" id="quiz-restart-btn">다시 시작</button>
+                        <button type="button" class="quiz-secondary-btn" id="quiz-review-result-btn" ${getWrongQuizMoods().length ? '' : 'disabled'}>몰랐던 감정들 다시 보기</button>
+                    </div>
+                </section>
+                ${wrongQuestions.length ? `
+                    <div class="quiz-review-list">
+                        ${wrongQuestions.map(question => renderQuizReviewCard(question.mood, false)).join('')}
+                    </div>
+                ` : ''}
+            </div>
+        `;
+
+        document.getElementById('quiz-restart-btn').addEventListener('click', () => {
+            createQuizSession();
+            renderQuizPlay();
+        });
+
+        document.getElementById('quiz-review-result-btn').addEventListener('click', () => {
+            if (getWrongQuizMoods().length) navigateTo('#/quiz/review');
+        });
+    }
+
+    function renderQuizReview() {
+        prepareQuizShell('다시 보기', true, false);
+        const wrongMoods = getWrongQuizMoods();
+
+        elements.mainContent.innerHTML = `
+            <div class="quiz-view">
+                ${wrongMoods.length ? `
+                    <div class="quiz-review-list">
+                        ${wrongMoods.map(mood => renderQuizReviewCard(mood, state.quizReviewExpandedMoodId === mood.moodId)).join('')}
+                    </div>
+                ` : `
+                    <section class="quiz-card">
+                        <h2 class="quiz-title">아직 몰랐던 감정이 없어요.</h2>
+                        <p class="quiz-description">퀴즈를 풀고 나면 새로 알게 된 감정들을 여기에서 다시 볼 수 있어요.</p>
+                    </section>
+                `}
+            </div>
+        `;
+
+        elements.mainContent.querySelectorAll('[data-review-toggle]').forEach(button => {
+            button.addEventListener('click', () => {
+                const moodId = button.dataset.reviewToggle;
+                state.quizReviewExpandedMoodId = state.quizReviewExpandedMoodId === moodId ? null : moodId;
+                renderQuizReview();
+            });
+        });
+    }
+
+    function renderQuizReviewCard(mood, expanded) {
+        const imageUrl = `images/${encodeURIComponent(mood.key)}.jpg`;
+
+        return `
+            <article class="quiz-review-card ${mood.tab}">
+                <div class="quiz-review-card-main">
+                    <img class="quiz-review-image" src="${imageUrl}" alt="${escapeHtml(mood.title)}">
+                    <div class="quiz-review-copy">
+                        <h3>${escapeHtml(mood.title)}</h3>
+                        <p>${escapeHtml(formatMoodContent(mood.description))}</p>
+                    </div>
+                </div>
+                <button type="button" class="quiz-review-toggle" data-review-toggle="${mood.moodId}">
+                    ${expanded ? '접기' : '이야기 보기'}
+                </button>
+                ${expanded ? `<p class="quiz-review-story">${escapeHtml(formatMoodContent(mood.content))}</p>` : ''}
+            </article>
+        `;
+    }
+
     function renderEmotionConstellation(discovery) {
         const centerX = 50;
         const centerY = 50;
@@ -859,6 +1342,7 @@
     function renderSettings() {
         updateActiveTab();
         elements.backBtn.classList.remove('hidden');
+        elements.quizBtn.classList.add('hidden');
         elements.settingsBtn.classList.add('hidden');
         elements.tabBar.classList.remove('hidden');
         elements.headerTitle.textContent = '설정';
@@ -1004,6 +1488,7 @@
     function renderDetail() {
         updateActiveTab();
         elements.backBtn.classList.remove('hidden');
+        elements.quizBtn.classList.add('hidden');
         elements.settingsBtn.classList.add('hidden');
         elements.tabBar.classList.add('hidden');
         elements.headerTitle.textContent = state.currentMood.title;
