@@ -11,6 +11,8 @@
     const QUIZ_OPTION_COUNT = 4;
     const MOOD_TABS = ['yellow', 'green', 'blue', 'red'];
     const NAV_TABS = ['discover', ...MOOD_TABS];
+    const CONSTELLATION_SPREAD_RADIUS = 38;
+    const CONSTELLATION_SPREAD_MAX_SHIFT = 20;
     const TAB_LABELS = {
         yellow: '노랑',
         green: '초록',
@@ -1077,6 +1079,7 @@
                 elements.mainContent.insertAdjacentHTML('afterbegin', '<p class="discover-status is-error">삭제하지 못했어요. 잠시 뒤 다시 시도해 주세요.</p>');
             }
         });
+        setupConstellationSpread();
     }
 
     function prepareQuizShell(title, showBack = false, showTabBar = false) {
@@ -1368,25 +1371,96 @@
         });
 
         return `
-            <div class="constellation-stage" aria-label="알아본 감정 결과">
+            <div class="constellation-stage" id="constellation-stage" aria-label="알아본 감정 결과">
                 <div class="constellation-decor top-left" aria-hidden="true">반짝</div>
                 <div class="constellation-decor bottom-right" aria-hidden="true">마음 알아가기</div>
                 <svg class="constellation-lines" viewBox="0 0 100 100" aria-hidden="true" preserveAspectRatio="none">
-                    ${positions.map(position => `
-                        <line x1="${centerX}" y1="${centerY}" x2="${position.x}" y2="${position.y}"></line>
+                    ${positions.map((position, index) => `
+                        <line data-line-index="${index}" x1="${centerX}" y1="${centerY}" x2="${position.x}" y2="${position.y}"></line>
                     `).join('')}
                 </svg>
                 <div class="constellation-center">
                     <span>${escapeHtml(discovery.target)}</span>
                 </div>
-                ${positions.map(position => `
+                ${positions.map((position, index) => `
                     <div class="constellation-bubble ${position.mood.tab}"
+                         data-bubble-index="${index}"
+                         data-base-x="${position.x}"
+                         data-base-y="${position.y}"
                          style="left: ${position.x}%; top: ${position.y}%; animation-delay: ${position.delay}s;">
                         ${escapeHtml(getMoodDisplayTitle(position.mood.title))}
                     </div>
                 `).join('')}
             </div>
         `;
+    }
+
+    function setupConstellationSpread() {
+        const stage = document.getElementById('constellation-stage');
+        if (!stage) return;
+
+        const bubbles = Array.from(stage.querySelectorAll('.constellation-bubble'));
+        const lines = Array.from(stage.querySelectorAll('.constellation-lines line'));
+        if (!bubbles.length) return;
+
+        const basePositions = bubbles.map((bubble, index) => ({
+            bubble,
+            line: lines[index] || null,
+            x: Number.parseFloat(bubble.dataset.baseX),
+            y: Number.parseFloat(bubble.dataset.baseY)
+        }));
+
+        const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+
+        function moveBubble(position, x, y, expanded) {
+            position.bubble.style.left = `${x}%`;
+            position.bubble.style.top = `${y}%`;
+            position.bubble.classList.toggle('is-spread', expanded);
+            if (position.line) {
+                position.line.setAttribute('x2', x.toFixed(2));
+                position.line.setAttribute('y2', y.toFixed(2));
+            }
+        }
+
+        function spreadFromPoint(clientX, clientY) {
+            const rect = stage.getBoundingClientRect();
+            if (!rect.width || !rect.height) return;
+
+            const touchX = ((clientX - rect.left) / rect.width) * 100;
+            const touchY = ((clientY - rect.top) / rect.height) * 100;
+            const maxShift = rect.width < 430
+                ? CONSTELLATION_SPREAD_MAX_SHIFT + 4
+                : CONSTELLATION_SPREAD_MAX_SHIFT;
+            const radius = basePositions.length > 12
+                ? CONSTELLATION_SPREAD_RADIUS + 8
+                : CONSTELLATION_SPREAD_RADIUS;
+
+            basePositions.forEach((position, index) => {
+                const dx = position.x - touchX;
+                const dy = position.y - touchY;
+                const distance = Math.hypot(dx, dy);
+
+                if (distance > radius) {
+                    moveBubble(position, position.x, position.y, false);
+                    return;
+                }
+
+                const fallbackAngle = ((Math.PI * 2) / basePositions.length) * index - Math.PI / 2;
+                const directionX = distance > 0.1 ? dx / distance : Math.cos(fallbackAngle);
+                const directionY = distance > 0.1 ? dy / distance : Math.sin(fallbackAngle);
+                const spreadRatio = Math.pow(1 - (distance / radius), 0.75);
+                const tangent = index % 2 === 0 ? 1 : -1;
+                const shift = maxShift * spreadRatio;
+                const nextX = clamp(position.x + (directionX * shift) + (-directionY * tangent * shift * 0.24), 8, 92);
+                const nextY = clamp(position.y + (directionY * shift) + (directionX * tangent * shift * 0.18), 10, 90);
+
+                moveBubble(position, nextX, nextY, true);
+            });
+        }
+
+        stage.addEventListener('pointerdown', event => {
+            spreadFromPoint(event.clientX, event.clientY);
+        });
     }
 
     function renderSettings() {

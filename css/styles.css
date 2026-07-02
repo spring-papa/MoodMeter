@@ -1034,6 +1034,8 @@ body {
     height: min(72vh, 560px);
     min-height: 420px;
     overflow: hidden;
+    cursor: pointer;
+    touch-action: manipulation;
     background:
         linear-gradient(90deg, rgba(255, 215, 0, 0.08) 1px, transparent 1px),
         linear-gradient(rgba(33, 150, 243, 0.07) 1px, transparent 1px),
@@ -1079,6 +1081,7 @@ body {
     stroke: rgba(74, 74, 74, 0.24);
     stroke-width: 0.45;
     stroke-dasharray: 2 1.5;
+    transition: x2 260ms ease, y2 260ms ease;
 }
 
 .constellation-center,
@@ -1120,6 +1123,13 @@ body {
     line-height: 1.25;
     animation: floatBubble 3.2s ease-in-out infinite;
     z-index: 2;
+    transition: left 260ms ease, top 260ms ease, box-shadow 260ms ease;
+    will-change: left, top;
+}
+
+.constellation-bubble.is-spread {
+    z-index: 4;
+    box-shadow: 0 12px 28px rgba(74, 74, 74, 0.18);
 }
 
 .constellation-bubble.yellow {
