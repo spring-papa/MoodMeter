@@ -903,27 +903,41 @@ body {
     color: var(--color-text-secondary);
 }
 
-.mood-info-panel {
+.mood-info-backdrop {
     position: fixed;
-    left: 50%;
+    inset: 0;
     bottom: var(--tab-bar-height);
+    z-index: 110;
+    background-color: rgba(0, 0, 0, 0.38);
+}
+
+.mood-info-panel {
+    position: absolute;
+    left: 50%;
+    bottom: 0;
     transform: translateX(-50%);
     width: min(calc(100% - 24px), calc(var(--max-width) - 24px));
     max-height: min(58vh, 460px);
     overflow-y: auto;
-    z-index: 120;
     background-color: #fff;
     border-radius: 16px 16px 0 0;
     box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.18);
-    padding: 16px;
+    padding: 0 16px 16px;
 }
 
 .mood-info-panel-header {
+    position: sticky;
+    top: 0;
+    z-index: 1;
     display: flex;
     justify-content: space-between;
     gap: 12px;
     align-items: center;
-    margin-bottom: 12px;
+    margin: 0 -16px 12px;
+    padding: 16px;
+    background-color: #fff;
+    border-radius: 16px 16px 0 0;
+    box-shadow: 0 8px 14px rgba(255, 255, 255, 0.92);
 }
 
 .mood-info-panel h2 {

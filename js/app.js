@@ -860,21 +860,23 @@
 
     function renderMoodInfoPanel(mood, selected) {
         return `
-            <section class="mood-info-panel" aria-label="${escapeHtml(mood.title)} 이야기">
-                <div class="mood-info-panel-header">
-                    <h2>${escapeHtml(getMoodDisplayTitle(mood.title))}</h2>
-                    <button type="button" class="mood-info-close" id="mood-info-close" aria-label="닫기">×</button>
-                </div>
-                <p class="mood-info-description">${escapeHtml(mood.description)}</p>
-                <p>${escapeHtml(formatMoodContent(mood.content))}</p>
-                <button
-                    type="button"
-                    class="mood-info-select-btn ${mood.tab} ${selected ? 'selected' : ''}"
-                    data-panel-toggle-mood="${mood.moodId}"
-                    aria-pressed="${selected}">
-                    ${selected ? '선택 해제' : '선택하기'}
-                </button>
-            </section>
+            <div class="mood-info-backdrop" id="mood-info-backdrop">
+                <section class="mood-info-panel" aria-label="${escapeHtml(mood.title)} 이야기">
+                    <div class="mood-info-panel-header">
+                        <h2>${escapeHtml(getMoodDisplayTitle(mood.title))}</h2>
+                        <button type="button" class="mood-info-close" id="mood-info-close" aria-label="닫기">×</button>
+                    </div>
+                    <p class="mood-info-description">${escapeHtml(mood.description)}</p>
+                    <p>${escapeHtml(formatMoodContent(mood.content))}</p>
+                    <button
+                        type="button"
+                        class="mood-info-select-btn ${mood.tab} ${selected ? 'selected' : ''}"
+                        data-panel-toggle-mood="${mood.moodId}"
+                        aria-pressed="${selected}">
+                        ${selected ? '선택 해제' : '선택하기'}
+                    </button>
+                </section>
+            </div>
         `;
     }
 
@@ -924,6 +926,15 @@
         const infoCloseBtn = document.getElementById('mood-info-close');
         if (infoCloseBtn) {
             infoCloseBtn.addEventListener('click', () => {
+                state.discoverDraft.infoMoodKey = null;
+                rerenderDiscoverEditor(editingDiscovery);
+            });
+        }
+
+        const infoBackdrop = document.getElementById('mood-info-backdrop');
+        if (infoBackdrop) {
+            infoBackdrop.addEventListener('click', (event) => {
+                if (event.target !== infoBackdrop) return;
                 state.discoverDraft.infoMoodKey = null;
                 rerenderDiscoverEditor(editingDiscovery);
             });
