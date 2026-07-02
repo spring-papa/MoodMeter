@@ -446,6 +446,11 @@
                 const tab = btn.dataset.tab;
                 if (!NAV_TABS.includes(tab)) return;
 
+                if (tab === 'discover' && hasDiscoverDraftProgress()) {
+                    navigateTo(getDiscoverDraftRoute());
+                    return;
+                }
+
                 navigateTo(`#/${tab}`);
             });
         });
@@ -496,6 +501,11 @@
 
     // Navigate to a route
     function navigateTo(hash) {
+        if (window.location.hash === hash) {
+            handleRoute();
+            return;
+        }
+
         window.location.hash = hash;
     }
 
@@ -556,7 +566,6 @@
             }
 
             if (parts.length === 2 && parts[1] === 'new') {
-                resetDiscoverDraft();
                 renderDiscoverEditor();
                 return;
             }
@@ -727,8 +736,28 @@
         `;
 
         document.getElementById('discover-new-btn').addEventListener('click', () => {
+            resetDiscoverDraft();
             navigateTo('#/discover/new');
         });
+    }
+
+    function hasDiscoverDraftProgress() {
+        return Boolean(
+            state.discoverDraft.target
+            || state.discoverDraft.selectedMoodKeys.length
+            || state.discoverDraft.infoMoodKey
+            || state.discoverDraft.error
+            || state.discoverDraft.editingId
+            || state.discoverDraft.filter !== 'all'
+        );
+    }
+
+    function getDiscoverDraftRoute() {
+        if (state.discoverDraft.editingId) {
+            return `#/discover/${encodeURIComponent(state.discoverDraft.editingId)}/edit`;
+        }
+
+        return '#/discover/new';
     }
 
     function renderDiscoverEditor(discoveryId, focusTarget, resetScroll = true, preservedScrollTop = 0, preservedWindowScrollY = 0) {
