@@ -5,7 +5,15 @@
     const DEFAULT_USER_NAME = '봄이';
     const USER_NAME_MAX_LENGTH = 20;
     const STORAGE_KEY_USER_NAME = 'moodmeter:userName';
+    const STORAGE_KEY_DISCOVERIES = 'moodmeter:discoveries';
     const MOOD_TABS = ['yellow', 'green', 'blue', 'red'];
+    const NAV_TABS = ['discover', ...MOOD_TABS];
+    const TAB_LABELS = {
+        yellow: '노랑',
+        green: '초록',
+        blue: '파랑',
+        red: '빨강'
+    };
 
     // App State
     const state = {
@@ -15,7 +23,16 @@
         showImage: false,
         loading: true,
         error: null,
-        userName: DEFAULT_USER_NAME
+        userName: DEFAULT_USER_NAME,
+        discoveries: [],
+        discoverDraft: {
+            target: '',
+            selectedMoodKeys: [],
+            filter: 'all',
+            infoMoodKey: null,
+            error: '',
+            editingId: null
+        }
     };
 
     // DOM Elements
@@ -33,6 +50,7 @@
     // Initialize App
     async function init() {
         loadUserName();
+        state.discoveries = loadDiscoveries();
         await loadData();
         setupEventListeners();
         handleRoute();
@@ -70,6 +88,145 @@
         return content.split(DEFAULT_USER_NAME).join(state.userName);
     }
 
+    function getMoodDisplayTitle(title) {
+        if (typeof title !== 'string') return '';
+        return title.replace(/\s*마음$/u, '');
+    }
+
+    function loadDiscoveries() {
+        try {
+            const rawDiscoveries = localStorage.getItem(STORAGE_KEY_DISCOVERIES);
+            if (!rawDiscoveries) return [];
+
+            const parsedDiscoveries = JSON.parse(rawDiscoveries);
+            if (!Array.isArray(parsedDiscoveries)) return [];
+
+            return parsedDiscoveries.filter(discovery => {
+                return discovery
+                    && typeof discovery.id === 'string'
+                    && typeof discovery.target === 'string'
+                    && Array.isArray(discovery.moods);
+            });
+        } catch (error) {
+            console.warn('Failed to load mood discoveries from localStorage:', error);
+            return [];
+        }
+    }
+
+    function saveDiscoveries(discoveries) {
+        try {
+            localStorage.setItem(STORAGE_KEY_DISCOVERIES, JSON.stringify(discoveries));
+            state.discoveries = discoveries;
+            return true;
+        } catch (error) {
+            console.warn('Failed to save mood discoveries to localStorage:', error);
+            return false;
+        }
+    }
+
+    function createDiscovery(target, selectedMoods) {
+        const now = new Date().toISOString();
+        const discovery = {
+            id: `dis_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+            target,
+            moods: selectedMoods.map(toStoredMood),
+            createdAt: now,
+            updatedAt: now
+        };
+
+        const saved = saveDiscoveries([discovery, ...state.discoveries]);
+        return saved ? discovery : null;
+    }
+
+    function updateDiscovery(id, target, selectedMoods) {
+        const now = new Date().toISOString();
+        const discoveries = state.discoveries.map(discovery => {
+            if (discovery.id !== id) return discovery;
+
+            return {
+                ...discovery,
+                target,
+                moods: selectedMoods.map(toStoredMood),
+                updatedAt: now
+            };
+        });
+
+        return saveDiscoveries(discoveries);
+    }
+
+    function deleteDiscovery(id) {
+        return saveDiscoveries(state.discoveries.filter(discovery => discovery.id !== id));
+    }
+
+    function findDiscoveryById(id) {
+        return state.discoveries.find(discovery => discovery.id === id) || null;
+    }
+
+    function toStoredMood(mood) {
+        return {
+            tab: mood.tab,
+            key: mood.key,
+            title: mood.title,
+            description: mood.description
+        };
+    }
+
+    function getAllMoodsWithTabs() {
+        if (!state.data) return [];
+
+        return MOOD_TABS.flatMap(tab => {
+            return (state.data[tab] || []).map(mood => ({
+                ...mood,
+                tab,
+                moodId: getMoodId(tab, mood.key)
+            }));
+        });
+    }
+
+    function getMoodId(tab, key) {
+        return `${tab}:${key}`;
+    }
+
+    function getDiscoveredMoodKeySet() {
+        const moodKeySet = new Set();
+
+        state.discoveries.forEach(discovery => {
+            discovery.moods.forEach(mood => {
+                moodKeySet.add(getMoodId(mood.tab, mood.key));
+            });
+        });
+
+        return moodKeySet;
+    }
+
+    function findMood(tab, key) {
+        return state.data?.[tab]?.find(mood => mood.key === key) || null;
+    }
+
+    function hydrateStoredMood(storedMood) {
+        const liveMood = findMood(storedMood.tab, storedMood.key);
+        return {
+            ...storedMood,
+            ...(liveMood || {}),
+            tab: storedMood.tab,
+            key: storedMood.key,
+            title: liveMood?.title || storedMood.title,
+            description: liveMood?.description || storedMood.description,
+            content: liveMood?.content || ''
+        };
+    }
+
+    function formatDate(dateString) {
+        const date = new Date(dateString);
+        if (Number.isNaN(date.getTime())) return '';
+
+        return new Intl.DateTimeFormat('ko-KR', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric'
+        }).format(date);
+    }
+
     function escapeHtml(text) {
         if (typeof text !== 'string') return '';
         return text
@@ -101,6 +258,7 @@
         elements.tabBtns.forEach(btn => {
             btn.addEventListener('click', () => {
                 const tab = btn.dataset.tab;
+                if (!NAV_TABS.includes(tab)) return;
 
                 navigateTo(`#/${tab}`);
             });
@@ -113,6 +271,10 @@
 
         // Back button
         elements.backBtn.addEventListener('click', () => {
+            if (state.currentTab === 'discover') {
+                navigateTo('#/discover');
+                return;
+            }
             navigateTo(`#/${state.currentTab}`);
         });
 
@@ -121,6 +283,12 @@
 
         // Handle keyboard navigation
         document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && state.discoverDraft.infoMoodKey) {
+                state.discoverDraft.infoMoodKey = null;
+                if (state.currentTab === 'discover') handleRoute();
+                return;
+            }
+
             if (e.key === 'Escape' && state.currentMood) {
                 navigateTo(`#/${state.currentTab}`);
             }
@@ -130,6 +298,14 @@
     // Navigate to a route
     function navigateTo(hash) {
         window.location.hash = hash;
+    }
+
+    function decodeRoutePart(value) {
+        try {
+            return decodeURIComponent(value);
+        } catch (error) {
+            return value;
+        }
     }
 
     // Handle routing
@@ -143,6 +319,36 @@
             state.currentMood = null;
             state.showImage = false;
             renderList();
+            return;
+        }
+
+        if (parts[0] === 'discover') {
+            state.currentTab = 'discover';
+            state.currentMood = null;
+            state.showImage = false;
+
+            if (parts.length === 1) {
+                renderDiscoverList();
+                return;
+            }
+
+            if (parts.length === 2 && parts[1] === 'new') {
+                resetDiscoverDraft();
+                renderDiscoverEditor();
+                return;
+            }
+
+            if (parts.length === 2) {
+                renderDiscoverResult(decodeRoutePart(parts[1]));
+                return;
+            }
+
+            if (parts.length === 3 && parts[2] === 'edit') {
+                renderDiscoverEditor(decodeRoutePart(parts[1]));
+                return;
+            }
+
+            navigateTo('#/discover');
             return;
         }
 
@@ -228,6 +434,426 @@
 
         // Setup lazy loading for images
         setupLazyLoading();
+    }
+
+    function prepareDiscoverShell(title, showBack = false, resetScroll = true) {
+        updateActiveTab();
+        elements.backBtn.classList.toggle('hidden', !showBack);
+        elements.settingsBtn.classList.remove('hidden');
+        elements.tabBar.classList.remove('hidden');
+        elements.headerTitle.textContent = title;
+        if (resetScroll) {
+            window.scrollTo(0, 0);
+            elements.mainContent.scrollTop = 0;
+        }
+    }
+
+    function resetDiscoverDraft(discovery) {
+        state.discoverDraft = {
+            target: discovery?.target || '',
+            selectedMoodKeys: discovery?.moods?.map(mood => getMoodId(mood.tab, mood.key)) || [],
+            filter: 'all',
+            infoMoodKey: null,
+            error: '',
+            editingId: discovery?.id || null
+        };
+    }
+
+    function renderDiscoverList() {
+        prepareDiscoverShell('알아가기');
+
+        const discoveries = state.discoveries;
+        const listHtml = discoveries.length ? `
+            <div class="discover-list" role="list">
+                ${discoveries.map(discovery => {
+                    const moods = discovery.moods.map(hydrateStoredMood);
+                    const extraCount = Math.max(moods.length - 4, 0);
+
+                    return `
+                        <a class="discover-card" href="#/discover/${encodeURIComponent(discovery.id)}" role="listitem">
+                            <div class="discover-card-main">
+                                <h2 class="discover-card-title">${escapeHtml(discovery.target)}</h2>
+                                <div class="discover-card-moods" aria-label="알아본 감정">
+                                    ${moods.slice(0, 4).map(mood => `
+                                        <span class="discover-mood-chip ${mood.tab}">${escapeHtml(getMoodDisplayTitle(mood.title))}</span>
+                                    `).join('')}
+                                    ${extraCount ? `<span class="discover-mood-chip more">+${extraCount}</span>` : ''}
+                                </div>
+                            </div>
+                            <time class="discover-card-date" datetime="${escapeHtml(discovery.createdAt)}">${formatDate(discovery.createdAt)}</time>
+                        </a>
+                    `;
+                }).join('')}
+            </div>
+        ` : `
+            <div class="discover-empty">
+                <p>새로 알아가기를 눌러 시작해 주세요.</p>
+                <p>내 감정들을 알아가며 나를 더 잘 이해할 수 있어요.</p>
+            </div>
+        `;
+
+        elements.mainContent.innerHTML = `
+            <div class="discover-view">
+                <div class="discover-top-actions">
+                    <button type="button" class="discover-primary-btn" id="discover-new-btn">새로 알아가기</button>
+                </div>
+                ${listHtml}
+            </div>
+        `;
+
+        document.getElementById('discover-new-btn').addEventListener('click', () => {
+            navigateTo('#/discover/new');
+        });
+    }
+
+    function renderDiscoverEditor(discoveryId, focusTarget, resetScroll = true, preservedScrollTop = 0, preservedWindowScrollY = 0) {
+        const editingDiscovery = discoveryId ? findDiscoveryById(discoveryId) : null;
+        if (discoveryId && !editingDiscovery) {
+            navigateTo('#/discover');
+            return;
+        }
+
+        if (discoveryId && state.discoverDraft.editingId !== discoveryId) {
+            resetDiscoverDraft(editingDiscovery);
+        }
+
+        prepareDiscoverShell(editingDiscovery ? '다시 수정' : '새로 알아가기', true, resetScroll);
+
+        const allMoods = getAllMoodsWithTabs();
+        const selectedMoodSet = new Set(state.discoverDraft.selectedMoodKeys);
+        const discoveredMoodSet = getDiscoveredMoodKeySet();
+        const selectedMoods = allMoods.filter(mood => selectedMoodSet.has(mood.moodId));
+        const filteredMoods = allMoods.filter(mood => {
+            if (state.discoverDraft.filter === 'discovered') {
+                return discoveredMoodSet.has(mood.moodId);
+            }
+
+            if (state.discoverDraft.filter === 'undiscovered') {
+                return !discoveredMoodSet.has(mood.moodId);
+            }
+
+            return state.discoverDraft.filter === 'all' || mood.tab === state.discoverDraft.filter;
+        });
+        const infoMood = state.discoverDraft.infoMoodKey
+            ? allMoods.find(mood => mood.moodId === state.discoverDraft.infoMoodKey)
+            : null;
+
+        elements.mainContent.innerHTML = `
+            <div class="discover-view discover-editor">
+                <form class="discover-form" id="discover-form">
+                    <label class="discover-label" for="discover-target">오늘 마음에 남은 일을 적어볼까요?</label>
+                    <input
+                        id="discover-target"
+                        class="discover-input"
+                        type="text"
+                        maxlength="60"
+                        placeholder="예: 친구와 놀았던 일, 수학 시험, 엄마에게 들은 말"
+                        value="${escapeHtml(state.discoverDraft.target)}"
+                    >
+                    <p class="discover-status ${state.discoverDraft.error ? 'is-error' : ''}" aria-live="polite">${escapeHtml(state.discoverDraft.error)}</p>
+                </form>
+
+                ${renderSelectedMoodChips(selectedMoods)}
+                ${renderMoodPicker(filteredMoods, selectedMoodSet)}
+                ${infoMood ? renderMoodInfoPanel(infoMood, selectedMoodSet.has(infoMood.moodId)) : ''}
+
+                <div class="discover-save-bar">
+                    <span>${selectedMoods.length}개 선택됨</span>
+                    <button type="button" class="discover-primary-btn" id="discover-save-btn" ${selectedMoods.length ? '' : 'disabled'}>알아가기 완성</button>
+                </div>
+            </div>
+        `;
+
+        bindDiscoverEditorEvents(editingDiscovery);
+
+        if (!resetScroll) {
+            elements.mainContent.scrollTop = preservedScrollTop;
+            window.scrollTo(0, preservedWindowScrollY);
+        }
+    }
+
+    function renderSelectedMoodChips(selectedMoods) {
+        return `
+            <div class="selected-mood-chips" aria-label="선택한 감정">
+                ${selectedMoods.length ? selectedMoods.map(mood => `
+                    <button type="button" class="selected-mood-chip ${mood.tab}" data-remove-mood="${mood.moodId}">
+                        ${escapeHtml(getMoodDisplayTitle(mood.title))}
+                        <span aria-hidden="true">×</span>
+                    </button>
+                `).join('') : '<p class="selected-mood-empty">느낀 마음을 하나 이상 골라 주세요.</p>'}
+            </div>
+        `;
+    }
+
+    function rerenderDiscoverEditor(editingDiscovery, focusTarget) {
+        const preservedScrollTop = elements.mainContent.scrollTop;
+        const preservedWindowScrollY = window.scrollY;
+        renderDiscoverEditor(editingDiscovery?.id, focusTarget, false, preservedScrollTop, preservedWindowScrollY);
+    }
+
+    function renderMoodPicker(moods, selectedMoodSet) {
+        const filterTabs = [
+            { key: 'all', label: '전체' },
+            ...MOOD_TABS.map(tab => ({ key: tab, label: TAB_LABELS[tab] })),
+            { key: 'discovered', label: '알아본 적 있음' },
+            { key: 'undiscovered', label: '알아본 적 없음' }
+        ];
+
+        return `
+            <section class="mood-picker" aria-label="감정 선택">
+                <div class="mood-picker-toolbar">
+                    <div class="mood-filter-tabs" role="group" aria-label="감정 필터">
+                        ${filterTabs.map(tab => `
+                            <button type="button"
+                                    class="mood-filter-btn ${state.discoverDraft.filter === tab.key ? 'active' : ''}"
+                                    data-filter="${tab.key}">
+                                ${tab.label}
+                            </button>
+                        `).join('')}
+                    </div>
+                </div>
+                <div class="selectable-mood-grid">
+                    ${moods.length ? moods.map(mood => {
+                        const selected = selectedMoodSet.has(mood.moodId);
+
+                        return `
+                            <article class="selectable-mood-card ${mood.tab} ${selected ? 'selected' : ''}">
+                                <button type="button"
+                                        class="selectable-mood-main"
+                                        data-toggle-mood="${mood.moodId}"
+                                        aria-pressed="${selected}">
+                                    <span class="selectable-mood-title">${escapeHtml(getMoodDisplayTitle(mood.title))}</span>
+                                </button>
+                                <button type="button" class="mood-info-btn" data-info-mood="${mood.moodId}" aria-label="${escapeHtml(mood.title)} 자세히 보기">?</button>
+                            </article>
+                        `;
+                    }).join('') : '<p class="mood-picker-empty">여기에 보이는 감정이 없어요.</p>'}
+                </div>
+            </section>
+        `;
+    }
+
+    function renderMoodInfoPanel(mood, selected) {
+        return `
+            <section class="mood-info-panel" aria-label="${escapeHtml(mood.title)} 이야기">
+                <div class="mood-info-panel-header">
+                    <h2>${escapeHtml(getMoodDisplayTitle(mood.title))}</h2>
+                    <button type="button" class="mood-info-close" id="mood-info-close" aria-label="닫기">×</button>
+                </div>
+                <p class="mood-info-description">${escapeHtml(mood.description)}</p>
+                <p>${escapeHtml(formatMoodContent(mood.content))}</p>
+                <button
+                    type="button"
+                    class="mood-info-select-btn ${mood.tab} ${selected ? 'selected' : ''}"
+                    data-panel-toggle-mood="${mood.moodId}"
+                    aria-pressed="${selected}">
+                    ${selected ? '선택 해제' : '선택하기'}
+                </button>
+            </section>
+        `;
+    }
+
+    function bindDiscoverEditorEvents(editingDiscovery) {
+        const form = document.getElementById('discover-form');
+        const targetInput = document.getElementById('discover-target');
+        const saveBtn = document.getElementById('discover-save-btn');
+
+        targetInput.addEventListener('input', () => {
+            state.discoverDraft.target = targetInput.value;
+            state.discoverDraft.error = '';
+        });
+
+        form.addEventListener('submit', (event) => {
+            event.preventDefault();
+            saveBtn.click();
+        });
+
+        elements.mainContent.querySelectorAll('[data-filter]').forEach(button => {
+            button.addEventListener('click', () => {
+                state.discoverDraft.filter = button.dataset.filter;
+                rerenderDiscoverEditor(editingDiscovery);
+            });
+        });
+
+        elements.mainContent.querySelectorAll('[data-toggle-mood]').forEach(button => {
+            button.addEventListener('click', () => {
+                toggleDraftMood(button.dataset.toggleMood);
+                rerenderDiscoverEditor(editingDiscovery);
+            });
+        });
+
+        elements.mainContent.querySelectorAll('[data-remove-mood]').forEach(button => {
+            button.addEventListener('click', () => {
+                toggleDraftMood(button.dataset.removeMood);
+                rerenderDiscoverEditor(editingDiscovery);
+            });
+        });
+
+        elements.mainContent.querySelectorAll('[data-info-mood]').forEach(button => {
+            button.addEventListener('click', () => {
+                state.discoverDraft.infoMoodKey = button.dataset.infoMood;
+                rerenderDiscoverEditor(editingDiscovery);
+            });
+        });
+
+        const infoCloseBtn = document.getElementById('mood-info-close');
+        if (infoCloseBtn) {
+            infoCloseBtn.addEventListener('click', () => {
+                state.discoverDraft.infoMoodKey = null;
+                rerenderDiscoverEditor(editingDiscovery);
+            });
+        }
+
+        const infoSelectBtn = elements.mainContent.querySelector('[data-panel-toggle-mood]');
+        if (infoSelectBtn) {
+            infoSelectBtn.addEventListener('click', () => {
+                toggleDraftMood(infoSelectBtn.dataset.panelToggleMood);
+                state.discoverDraft.infoMoodKey = null;
+                rerenderDiscoverEditor(editingDiscovery);
+            });
+        }
+
+        saveBtn.addEventListener('click', () => {
+            const target = normalizeDiscoverTarget(targetInput.value);
+            const allMoods = getAllMoodsWithTabs();
+            const selectedMoodSet = new Set(state.discoverDraft.selectedMoodKeys);
+            const selectedMoods = allMoods.filter(mood => selectedMoodSet.has(mood.moodId));
+
+            if (!target) {
+                state.discoverDraft.error = '무엇에 대한 마음인지 먼저 적어 주세요.';
+                rerenderDiscoverEditor(editingDiscovery);
+                return;
+            }
+
+            if (!selectedMoods.length) {
+                state.discoverDraft.error = '마음을 하나 이상 골라 주세요.';
+                rerenderDiscoverEditor(editingDiscovery);
+                return;
+            }
+
+            if (editingDiscovery) {
+                const saved = updateDiscovery(editingDiscovery.id, target, selectedMoods);
+                if (saved) {
+                    resetDiscoverDraft();
+                    navigateTo(`#/discover/${editingDiscovery.id}`);
+                } else {
+                    state.discoverDraft.error = '저장하지 못했어요. 브라우저 저장 공간을 확인해 주세요.';
+                    rerenderDiscoverEditor(editingDiscovery);
+                }
+                return;
+            }
+
+            const discovery = createDiscovery(target, selectedMoods);
+            if (discovery) {
+                resetDiscoverDraft();
+                navigateTo(`#/discover/${discovery.id}`);
+            } else {
+                state.discoverDraft.error = '저장하지 못했어요. 브라우저 저장 공간을 확인해 주세요.';
+                rerenderDiscoverEditor(editingDiscovery);
+            }
+        });
+    }
+
+    function normalizeDiscoverTarget(value) {
+        if (typeof value !== 'string') return '';
+        return value.trim().replace(/\s+/g, ' ').slice(0, 60);
+    }
+
+    function toggleDraftMood(moodId) {
+        const selectedMoodSet = new Set(state.discoverDraft.selectedMoodKeys);
+        if (selectedMoodSet.has(moodId)) {
+            selectedMoodSet.delete(moodId);
+        } else {
+            selectedMoodSet.add(moodId);
+        }
+
+        state.discoverDraft.selectedMoodKeys = Array.from(selectedMoodSet);
+        state.discoverDraft.error = '';
+    }
+
+    function renderDiscoverResult(discoveryId) {
+        const discovery = findDiscoveryById(discoveryId);
+        if (!discovery) {
+            navigateTo('#/discover');
+            return;
+        }
+
+        prepareDiscoverShell('알아가기', true);
+
+        const hydratedDiscovery = {
+            ...discovery,
+            moods: discovery.moods.map(hydrateStoredMood)
+        };
+
+        elements.mainContent.innerHTML = `
+            <div class="discover-view constellation-view">
+                ${renderEmotionConstellation(hydratedDiscovery)}
+                <div class="constellation-meta">
+                    <time datetime="${escapeHtml(discovery.createdAt)}">${formatDate(discovery.createdAt)}</time>
+                    <p>${hydratedDiscovery.moods.length}개의 마음을 알아봤어요.</p>
+                </div>
+                <div class="constellation-actions">
+                    <button type="button" class="discover-secondary-btn" id="discover-list-btn">목록으로</button>
+                    <button type="button" class="discover-secondary-btn" id="discover-edit-btn">감정 다시 고르기</button>
+                    <button type="button" class="discover-danger-btn" id="discover-delete-btn">삭제</button>
+                </div>
+            </div>
+        `;
+
+        document.getElementById('discover-list-btn').addEventListener('click', () => navigateTo('#/discover'));
+        document.getElementById('discover-edit-btn').addEventListener('click', () => {
+            resetDiscoverDraft(discovery);
+            navigateTo(`#/discover/${discovery.id}/edit`);
+        });
+        document.getElementById('discover-delete-btn').addEventListener('click', () => {
+            if (!window.confirm('이 알아가기 기록을 삭제할까요?')) return;
+
+            if (deleteDiscovery(discovery.id)) {
+                navigateTo('#/discover');
+            } else {
+                elements.mainContent.insertAdjacentHTML('afterbegin', '<p class="discover-status is-error">삭제하지 못했어요. 잠시 뒤 다시 시도해 주세요.</p>');
+            }
+        });
+    }
+
+    function renderEmotionConstellation(discovery) {
+        const centerX = 50;
+        const centerY = 50;
+        const count = Math.max(discovery.moods.length, 1);
+        const positions = discovery.moods.map((mood, index) => {
+            const angle = ((Math.PI * 2) / count) * index - Math.PI / 2;
+            const ring = index % 2 === 0 ? 34 : 39;
+            const x = centerX + Math.cos(angle) * ring;
+            const y = centerY + Math.sin(angle) * Math.min(ring, 30);
+
+            return {
+                mood,
+                x: Math.max(9, Math.min(91, x)),
+                y: Math.max(12, Math.min(88, y)),
+                delay: (index % 5) * 0.15
+            };
+        });
+
+        return `
+            <div class="constellation-stage" aria-label="알아본 감정 결과">
+                <div class="constellation-decor top-left" aria-hidden="true">반짝</div>
+                <div class="constellation-decor bottom-right" aria-hidden="true">마음 알아가기</div>
+                <svg class="constellation-lines" viewBox="0 0 100 100" aria-hidden="true" preserveAspectRatio="none">
+                    ${positions.map(position => `
+                        <line x1="${centerX}" y1="${centerY}" x2="${position.x}" y2="${position.y}"></line>
+                    `).join('')}
+                </svg>
+                <div class="constellation-center">
+                    <span>${escapeHtml(discovery.target)}</span>
+                </div>
+                ${positions.map(position => `
+                    <div class="constellation-bubble ${position.mood.tab}"
+                         style="left: ${position.x}%; top: ${position.y}%; animation-delay: ${position.delay}s;">
+                        ${escapeHtml(getMoodDisplayTitle(position.mood.title))}
+                    </div>
+                `).join('')}
+            </div>
+        `;
     }
 
     function renderSettings() {
