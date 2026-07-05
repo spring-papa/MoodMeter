@@ -40,8 +40,7 @@
             syncing: false,
             user: null,
             status: '',
-            error: '',
-            emailLinkNeedsEmail: false
+            error: ''
         },
         quizSession: null,
         quizReviewExpandedMoodId: null,
@@ -747,7 +746,6 @@
                         ? '기록이 안전하게 보관되고 있어요.'
                         : '지금은 이 기기에만 기록되고 있어요.';
                     state.cloud.error = '';
-                    state.cloud.emailLinkNeedsEmail = false;
 
                     if (user) {
                         refreshLocalDataFromCloud();
@@ -755,57 +753,11 @@
 
                     if (isSettingsRoute()) renderSettings();
                 });
-
-                handleEmailLinkSignInIfNeeded();
             })
             .catch(error => {
                 console.warn('MoodMeter cloud sync is unavailable:', error);
                 state.cloud.available = false;
                 state.cloud.error = '온라인 보관을 준비하지 못했어요. 이 기기에는 계속 저장돼요.';
-                if (isSettingsRoute()) renderSettings();
-            });
-    }
-
-    function handleEmailLinkSignInIfNeeded() {
-        const cloud = getCloud();
-        if (!cloud?.isEmailLinkSignInUrl?.() || !cloud?.completeEmailLinkSignIn) return;
-
-        state.cloud.syncing = true;
-        state.cloud.status = '이메일 링크로 로그인하는 중이에요...';
-        state.cloud.error = '';
-        if (isSettingsRoute()) renderSettings();
-
-        cloud.completeEmailLinkSignIn()
-            .then(result => {
-                if (result?.ok) {
-                    state.cloud.user = result.user;
-                    state.cloud.status = '기록이 안전하게 보관되고 있어요.';
-                    state.cloud.error = '';
-                    state.cloud.emailLinkNeedsEmail = false;
-                    loadUserName();
-                    state.discoveries = loadDiscoveries();
-                    state.quizStats = loadQuizStats();
-                    return;
-                }
-
-                if (result?.needsEmail) {
-                    state.cloud.emailLinkNeedsEmail = true;
-                    state.cloud.status = result.message || '확인을 위해 이메일 주소를 한 번 더 입력해 주세요.';
-                    state.cloud.error = '';
-                    if (!isSettingsRoute()) navigateTo('#/settings');
-                    return;
-                }
-
-                if (!result?.skipped) {
-                    state.cloud.error = result?.message || '이메일 로그인 중 문제가 생겼어요. 잠시 후 다시 시도해 주세요.';
-                }
-            })
-            .catch(error => {
-                console.warn('Failed to complete email link sign-in:', error);
-                state.cloud.error = '이메일 로그인 중 문제가 생겼어요. 잠시 후 다시 시도해 주세요.';
-            })
-            .finally(() => {
-                state.cloud.syncing = false;
                 if (isSettingsRoute()) renderSettings();
             });
     }
@@ -1988,14 +1940,14 @@
             <section class="cloud-sync-section" aria-labelledby="cloud-sync-title">
                 <h2 class="settings-title" id="cloud-sync-title">기록 보관</h2>
                 <div class="cloud-sync-card">
-                    <p class="settings-description">Google 계정이나 이메일로 연결하면 다른 기기에서도 알아가기 기록을 이어서 볼 수 있어요. 비밀번호 없이 이메일 링크로도 로그인할 수 있어요.</p>
+                    <p class="settings-description">Google 계정이나 이메일로 연결하면 다른 기기에서도 알아가기 기록을 이어서 볼 수 있어요.</p>
                     <p class="cloud-sync-status ${statusClass}" aria-live="polite">${statusMessage}</p>
                     <div class="cloud-sync-actions">
                         ${isSignedIn ? `
                             <button type="button" class="cloud-logout-btn" id="cloud-logout-btn" ${state.cloud.syncing ? 'disabled' : ''}>로그아웃</button>
                         ` : `
                             <button type="button" class="cloud-login-btn" id="cloud-login-btn" ${state.cloud.syncing ? 'disabled' : ''}>Google 계정으로 기록 보관하기</button>
-                            ${renderEmailLinkSignInForm()}
+                            ${renderEmailPasswordForm()}
                         `}
                     </div>
                     <p class="cloud-sync-note">공용 기기라면 사용 후 로그아웃해 주세요.</p>
@@ -2004,18 +1956,10 @@
         `;
     }
 
-    function renderEmailLinkSignInForm() {
-        const isCompletingLink = state.cloud.emailLinkNeedsEmail;
-        const description = isCompletingLink
-            ? '확인을 위해 이메일 주소를 한 번 더 입력해 주세요.'
-            : '또는 이메일로 링크 받기';
-        const buttonText = isCompletingLink
-            ? '이메일 링크 로그인 완료하기'
-            : '이메일로 로그인 링크 받기';
-
+    function renderEmailPasswordForm() {
         return `
-            <form class="cloud-email-link-form" id="cloud-email-link-form" novalidate>
-                <p class="cloud-email-hint">${description}</p>
+            <form class="cloud-email-form" id="cloud-email-form" novalidate>
+                <p class="cloud-email-hint">또는 이메일로 이용하기</p>
                 <label class="cloud-email-field" for="cloud-email-input">
                     <span>이메일</span>
                     <input
@@ -2028,9 +1972,35 @@
                         ${state.cloud.syncing ? 'disabled' : ''}
                     >
                 </label>
+                <label class="cloud-email-field" for="cloud-password-input">
+                    <span>비밀번호</span>
+                    <input
+                        id="cloud-password-input"
+                        class="cloud-email-input"
+                        type="password"
+                        autocomplete="current-password"
+                        minlength="6"
+                        placeholder="6자 이상"
+                        ${state.cloud.syncing ? 'disabled' : ''}
+                    >
+                </label>
+                <label class="cloud-email-field" for="cloud-display-name-input">
+                    <span>이름 또는 별명, 선택</span>
+                    <input
+                        id="cloud-display-name-input"
+                        class="cloud-email-input"
+                        type="text"
+                        maxlength="${USER_NAME_MAX_LENGTH}"
+                        autocomplete="name"
+                        placeholder="기록에 표시할 이름"
+                        ${state.cloud.syncing ? 'disabled' : ''}
+                    >
+                </label>
                 <p class="cloud-email-message" id="cloud-email-message" aria-live="polite"></p>
                 <div class="cloud-email-actions">
-                    <button type="submit" class="cloud-email-link-btn" ${state.cloud.syncing ? 'disabled' : ''}>${buttonText}</button>
+                    <button type="submit" class="cloud-email-btn cloud-email-primary-btn" id="cloud-email-signin-btn" ${state.cloud.syncing ? 'disabled' : ''}>이메일로 로그인</button>
+                    <button type="button" class="cloud-email-btn cloud-email-secondary-btn" id="cloud-email-signup-btn" ${state.cloud.syncing ? 'disabled' : ''}>새 이메일로 가입하기</button>
+                    <button type="button" class="cloud-email-reset-btn" id="cloud-password-reset-btn" ${state.cloud.syncing ? 'disabled' : ''}>비밀번호를 잊었어요</button>
                 </div>
             </form>
         `;
@@ -2039,7 +2009,7 @@
     function bindCloudSyncSettings() {
         const loginBtn = document.getElementById('cloud-login-btn');
         const logoutBtn = document.getElementById('cloud-logout-btn');
-        const emailForm = document.getElementById('cloud-email-link-form');
+        const emailForm = document.getElementById('cloud-email-form');
         const cloud = getCloud();
 
         if (loginBtn) {
@@ -2093,7 +2063,11 @@
 
         if (emailForm) {
             const emailInput = document.getElementById('cloud-email-input');
+            const passwordInput = document.getElementById('cloud-password-input');
+            const displayNameInput = document.getElementById('cloud-display-name-input');
             const emailMessage = document.getElementById('cloud-email-message');
+            const signUpBtn = document.getElementById('cloud-email-signup-btn');
+            const resetBtn = document.getElementById('cloud-password-reset-btn');
 
             function setEmailMessage(message, isError = false) {
                 emailMessage.textContent = message;
@@ -2101,19 +2075,57 @@
                 emailMessage.classList.toggle('is-success', Boolean(message) && !isError);
             }
 
-            emailForm.addEventListener('submit', async event => {
-                event.preventDefault();
-
+            function getEmailFormValues() {
                 const email = normalizeEmailInput(emailInput.value);
+                const password = passwordInput.value;
+                const displayName = normalizeUserName(displayNameInput.value);
                 emailInput.value = email;
+                displayNameInput.value = displayName;
 
+                return { email, password, displayName };
+            }
+
+            function validateEmailPassword({ email, password }, needsPassword = true) {
                 if (!isValidEmail(email)) {
                     setEmailMessage('이메일 주소를 다시 확인해 주세요.', true);
                     emailInput.focus();
+                    return false;
+                }
+
+                if (needsPassword && !password) {
+                    setEmailMessage('비밀번호를 입력해 주세요.', true);
+                    passwordInput.focus();
+                    return false;
+                }
+
+                if (needsPassword && password.length < 6) {
+                    setEmailMessage('비밀번호는 6자 이상으로 입력해 주세요.', true);
+                    passwordInput.focus();
+                    return false;
+                }
+
+                return true;
+            }
+
+            async function runEmailAuth(action) {
+                if (!cloud?.signInWithEmail || !cloud?.signUpWithEmail || !cloud?.sendPasswordReset) {
+                    state.cloud.error = '온라인 보관을 준비하지 못했어요. 이 기기에는 계속 저장돼요.';
+                    renderSettings();
                     return;
                 }
 
-                if (!cloud?.sendEmailSignInLink) {
+                const values = getEmailFormValues();
+                const needsPassword = action !== 'reset';
+                if (!validateEmailPassword(values, needsPassword)) return;
+
+                if (action === 'signup' && values.displayName.length > USER_NAME_MAX_LENGTH) {
+                    setEmailMessage(`이름은 ${USER_NAME_MAX_LENGTH}자 이하로 입력해 주세요.`, true);
+                    displayNameInput.focus();
+                    return;
+                }
+
+                const currentCloud = getCloud();
+                if (!currentCloud) {
                     state.cloud.error = '온라인 보관을 준비하지 못했어요. 이 기기에는 계속 저장돼요.';
                     renderSettings();
                     return;
@@ -2123,10 +2135,14 @@
                 state.cloud.error = '';
                 renderSettings();
 
-                const currentCloud = getCloud();
-                const result = state.cloud.emailLinkNeedsEmail && currentCloud?.completeEmailLinkSignIn
-                    ? await currentCloud.completeEmailLinkSignIn(email)
-                    : await currentCloud.sendEmailSignInLink(email);
+                let result;
+                if (action === 'signup') {
+                    result = await currentCloud.signUpWithEmail(values.email, values.password, values.displayName);
+                } else if (action === 'reset') {
+                    result = await currentCloud.sendPasswordReset(values.email);
+                } else {
+                    result = await currentCloud.signInWithEmail(values.email, values.password);
+                }
 
                 state.cloud.syncing = false;
 
@@ -2134,21 +2150,29 @@
                     state.cloud.user = result.user || currentCloud.getCurrentUser?.() || null;
                     state.cloud.status = result.user
                         ? '기록이 안전하게 보관되고 있어요.'
-                        : '이메일로 로그인 링크를 보냈어요. 메일함을 열고 링크를 눌러 주세요.';
+                        : '비밀번호 재설정 메일을 보냈어요.';
                     state.cloud.error = '';
-                    state.cloud.emailLinkNeedsEmail = false;
                     loadUserName();
                     state.discoveries = loadDiscoveries();
                     state.quizStats = loadQuizStats();
-                } else if (result?.needsEmail) {
-                    state.cloud.emailLinkNeedsEmail = true;
-                    state.cloud.status = result.message || '확인을 위해 이메일 주소를 한 번 더 입력해 주세요.';
-                    state.cloud.error = '';
                 } else {
-                    state.cloud.error = result?.message || '이메일 로그인 중 문제가 생겼어요. 잠시 후 다시 시도해 주세요.';
+                    state.cloud.error = result?.message || '로그인 중 문제가 생겼어요. 잠시 후 다시 시도해 주세요.';
                 }
 
                 renderSettings();
+            }
+
+            emailForm.addEventListener('submit', async event => {
+                event.preventDefault();
+                await runEmailAuth('signin');
+            });
+
+            signUpBtn.addEventListener('click', async () => {
+                await runEmailAuth('signup');
+            });
+
+            resetBtn.addEventListener('click', async () => {
+                await runEmailAuth('reset');
             });
         }
     }

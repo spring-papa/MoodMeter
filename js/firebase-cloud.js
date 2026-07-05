@@ -14,9 +14,10 @@ import {
     onAuthStateChanged,
     setPersistence,
     browserLocalPersistence,
-    sendSignInLinkToEmail,
-    isSignInWithEmailLink,
-    signInWithEmailLink
+    createUserWithEmailAndPassword,
+    signInWithEmailAndPassword,
+    sendPasswordResetEmail,
+    updateProfile
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
 
 import {
@@ -45,7 +46,6 @@ const STORAGE_KEY_USER_NAME = "moodmeter:userName";
 const STORAGE_KEY_DISCOVERIES = "moodmeter:discoveries";
 const STORAGE_KEY_QUIZ_STATS = "moodmeter:quizStats";
 const STORAGE_KEY_SYNC_META = "moodmeter:syncMeta";
-const STORAGE_KEY_EMAIL_FOR_SIGN_IN = "moodmeter:emailForSignIn";
 
 let app = null;
 let auth = null;
@@ -305,65 +305,37 @@ function isValidEmail(value) {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
-function readEmailForSignIn() {
-    try {
-        return normalizeEmailInput(localStorage.getItem(STORAGE_KEY_EMAIL_FOR_SIGN_IN));
-    } catch (error) {
-        console.warn("Failed to read email sign-in address from localStorage:", error);
-        return "";
-    }
+function normalizeDisplayName(value) {
+    return String(value || "").trim().replace(/\s+/g, " ").slice(0, 20);
 }
 
-function writeEmailForSignIn(email) {
-    try {
-        localStorage.setItem(STORAGE_KEY_EMAIL_FOR_SIGN_IN, email);
-        return true;
-    } catch (error) {
-        console.warn("Failed to save email sign-in address to localStorage:", error);
-        return false;
-    }
+function isValidPassword(value) {
+    return String(value || "").length >= 6;
 }
 
-function clearEmailForSignIn() {
-    try {
-        localStorage.removeItem(STORAGE_KEY_EMAIL_FOR_SIGN_IN);
-    } catch (error) {
-        console.warn("Failed to clear email sign-in address from localStorage:", error);
-    }
-}
-
-function getEmailLinkActionCodeSettings() {
-    return {
-        url: `${window.location.origin}${window.location.pathname}`,
-        handleCodeInApp: true
-    };
-}
-
-function cleanupEmailLinkUrl() {
-    if (!window.history?.replaceState) return;
-    window.history.replaceState({}, document.title, `${window.location.pathname}${window.location.hash}`);
-}
-
-function getEmailLinkAuthErrorMessage(error) {
+function getAuthErrorMessage(error) {
     switch (error?.code) {
         case "auth/invalid-email":
         case "auth/missing-email":
             return "이메일 주소를 다시 확인해 주세요.";
-        case "auth/invalid-action-code":
-            return "로그인 링크가 올바르지 않아요. 새 링크를 다시 받아 주세요.";
-        case "auth/expired-action-code":
-            return "로그인 링크 시간이 지났어요. 새 링크를 다시 받아 주세요.";
-        case "auth/user-disabled":
-            return "이 계정은 사용할 수 없어요.";
+        case "auth/missing-password":
+            return "비밀번호를 입력해 주세요.";
+        case "auth/weak-password":
+            return "비밀번호는 6자 이상으로 입력해 주세요.";
+        case "auth/email-already-in-use":
+            return "이미 다른 로그인 방식으로 사용 중인 이메일이에요. 전에 사용하던 방식으로 로그인해 주세요.";
+        case "auth/user-not-found":
+        case "auth/wrong-password":
+        case "auth/invalid-credential":
+            return "이메일과 비밀번호를 다시 확인해 주세요.";
+        case "auth/account-exists-with-different-credential":
+            return "이미 다른 로그인 방식으로 사용 중인 이메일이에요. 전에 사용하던 방식으로 로그인해 주세요.";
         case "auth/network-request-failed":
             return "인터넷 연결을 확인한 뒤 다시 시도해 주세요.";
-        case "auth/too-many-requests":
-            return "요청이 너무 많아요. 잠시 후 다시 시도해 주세요.";
-        case "auth/unauthorized-continue-uri":
-        case "auth/invalid-continue-uri":
-            return "로그인 링크 주소 설정에 문제가 있어요. 관리자에게 알려 주세요.";
+        case "auth/popup-closed-by-user":
+            return "로그인이 취소되었어요.";
         default:
-            return "이메일 로그인 중 문제가 생겼어요. 잠시 후 다시 시도해 주세요.";
+            return "로그인 중 문제가 생겼어요. 잠시 후 다시 시도해 주세요.";
     }
 }
 
@@ -379,7 +351,69 @@ async function handleSignedInUser(user, method) {
     return { ok: true, user: getCurrentUser() };
 }
 
-async function sendEmailSignInLink(emailInput) {
+async function signUpWithEmail(emailInput, passwordInput, displayNameInput = "") {
+    await init();
+    if (initError || !auth) {
+        return { ok: false, error: initError || new Error("Firebase Auth is unavailable.") };
+    }
+
+    const email = normalizeEmailInput(emailInput);
+    if (!isValidEmail(email)) {
+        return { ok: false, code: "auth/invalid-email", message: "이메일 주소를 다시 확인해 주세요." };
+    }
+
+    const password = String(passwordInput || "");
+    if (!isValidPassword(password)) {
+        return { ok: false, code: "auth/weak-password", message: "비밀번호는 6자 이상으로 입력해 주세요." };
+    }
+
+    try {
+        trackEvent("login_start", { method: "email_password_signup" });
+        const credential = await createUserWithEmailAndPassword(auth, email, password);
+        const displayName = normalizeDisplayName(displayNameInput);
+
+        if (displayName) {
+            await updateProfile(credential.user, { displayName });
+        }
+
+        // TODO: 필요하면 linkWithCredential을 사용해 동일 사용자의 여러 로그인 방식을 하나의 Firebase uid에 연결한다.
+        // TODO: 보호자 확인이 필요한 정책으로 바뀌면 sendEmailVerification을 추가하고 emailVerified 기준 안내를 강화한다.
+        return handleSignedInUser(credential.user, "email_password_signup");
+    } catch (error) {
+        console.warn("[MoodMeterCloud] Auth error:", error);
+        trackEvent("login_failed", { method: "email_password_signup", reason: getSafeErrorCode(error) });
+        return { ok: false, error, message: getAuthErrorMessage(error) };
+    }
+}
+
+async function signInWithEmail(emailInput, passwordInput) {
+    await init();
+    if (initError || !auth) {
+        return { ok: false, error: initError || new Error("Firebase Auth is unavailable.") };
+    }
+
+    const email = normalizeEmailInput(emailInput);
+    if (!isValidEmail(email)) {
+        return { ok: false, code: "auth/invalid-email", message: "이메일 주소를 다시 확인해 주세요." };
+    }
+
+    const password = String(passwordInput || "");
+    if (!password) {
+        return { ok: false, code: "auth/missing-password", message: "비밀번호를 입력해 주세요." };
+    }
+
+    try {
+        trackEvent("login_start", { method: "email_password" });
+        const credential = await signInWithEmailAndPassword(auth, email, password);
+        return handleSignedInUser(credential.user, "email_password");
+    } catch (error) {
+        console.warn("[MoodMeterCloud] Auth error:", error);
+        trackEvent("login_failed", { method: "email_password", reason: getSafeErrorCode(error) });
+        return { ok: false, error, message: getAuthErrorMessage(error) };
+    }
+}
+
+async function sendPasswordReset(emailInput) {
     await init();
     if (initError || !auth) {
         return { ok: false, error: initError || new Error("Firebase Auth is unavailable.") };
@@ -391,54 +425,13 @@ async function sendEmailSignInLink(emailInput) {
     }
 
     try {
-        trackEvent("login_start", { method: "email_link" });
-        await sendSignInLinkToEmail(auth, email, getEmailLinkActionCodeSettings());
-        writeEmailForSignIn(email);
+        await sendPasswordResetEmail(auth, email);
+        trackEvent("password_reset_requested");
         return { ok: true };
     } catch (error) {
-        console.warn("[MoodMeterCloud] Email link auth error:", error);
-        trackEvent("login_failed", { method: "email_link", reason: getSafeErrorCode(error) });
-        return { ok: false, error, message: getEmailLinkAuthErrorMessage(error) };
-    }
-}
-
-function isEmailLinkSignInUrl(url = window.location.href) {
-    if (!auth) return false;
-    return isSignInWithEmailLink(auth, url);
-}
-
-async function completeEmailLinkSignIn(emailInput) {
-    await init();
-    if (initError || !auth) {
-        return { ok: false, error: initError || new Error("Firebase Auth is unavailable.") };
-    }
-
-    if (!isEmailLinkSignInUrl()) {
-        return { ok: false, skipped: true };
-    }
-
-    const email = normalizeEmailInput(emailInput) || readEmailForSignIn();
-    if (!email) {
-        return {
-            ok: false,
-            needsEmail: true,
-            message: "확인을 위해 이메일 주소를 한 번 더 입력해 주세요."
-        };
-    }
-
-    if (!isValidEmail(email)) {
-        return { ok: false, code: "auth/invalid-email", message: "이메일 주소를 다시 확인해 주세요." };
-    }
-
-    try {
-        const credential = await signInWithEmailLink(auth, email, window.location.href);
-        clearEmailForSignIn();
-        cleanupEmailLinkUrl();
-        return handleSignedInUser(credential.user, "email_link");
-    } catch (error) {
-        console.warn("[MoodMeterCloud] Email link auth error:", error);
-        trackEvent("login_failed", { method: "email_link", reason: getSafeErrorCode(error) });
-        return { ok: false, error, message: getEmailLinkAuthErrorMessage(error) };
+        console.warn("[MoodMeterCloud] Auth error:", error);
+        trackEvent("password_reset_failed", { reason: getSafeErrorCode(error) });
+        return { ok: false, error, message: getAuthErrorMessage(error) };
     }
 }
 
@@ -769,9 +762,9 @@ function setAnalyticsUserProperties(properties) {
 window.MoodMeterCloud = {
     init,
     signInWithGoogle,
-    sendEmailSignInLink,
-    completeEmailLinkSignIn,
-    isEmailLinkSignInUrl,
+    signUpWithEmail,
+    signInWithEmail,
+    sendPasswordReset,
     signOutUser,
     getCurrentUser,
     onUserChanged,

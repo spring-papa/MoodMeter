@@ -607,7 +607,7 @@ body {
     gap: 8px;
 }
 
-.cloud-email-link-form {
+.cloud-email-form {
     display: flex;
     flex-direction: column;
     gap: 10px;
@@ -641,18 +641,35 @@ body {
     gap: 8px;
 }
 
-.cloud-email-link-btn {
+.cloud-email-btn,
+.cloud-email-reset-btn {
     width: 100%;
     min-height: 44px;
     border: none;
     border-radius: 10px;
     padding: 12px;
-    background-color: #4a4a4a;
-    color: #fff;
     font-size: 1rem;
     font-weight: 700;
     cursor: pointer;
     transition: opacity var(--transition-fast), transform var(--transition-fast);
+}
+
+.cloud-email-primary-btn {
+    background-color: #4a4a4a;
+    color: #fff;
+}
+
+.cloud-email-secondary-btn {
+    background-color: #ffffff;
+    color: #1f1f1f;
+    border: 1px solid var(--color-border);
+}
+
+.cloud-email-reset-btn {
+    background-color: transparent;
+    color: var(--color-text-secondary);
+    text-decoration: underline;
+    text-underline-offset: 3px;
 }
 
 .cloud-email-hint,
@@ -700,14 +717,16 @@ body {
 .cloud-login-btn:disabled,
 .cloud-logout-btn:disabled,
 .cloud-email-input:disabled,
-.cloud-email-link-btn:disabled {
+.cloud-email-btn:disabled,
+.cloud-email-reset-btn:disabled {
     opacity: 0.55;
     cursor: not-allowed;
 }
 
 .cloud-login-btn:not(:disabled):active,
 .cloud-logout-btn:not(:disabled):active,
-.cloud-email-link-btn:not(:disabled):active {
+.cloud-email-btn:not(:disabled):active,
+.cloud-email-reset-btn:not(:disabled):active {
     transform: translateY(1px);
 }
 
@@ -1892,7 +1911,8 @@ body {
 .settings-input:focus-visible,
 .cloud-email-input:focus-visible,
 .settings-btn:focus-visible,
-.cloud-email-link-btn:focus-visible,
+.cloud-email-btn:focus-visible,
+.cloud-email-reset-btn:focus-visible,
 .discover-primary-btn:focus-visible,
 .discover-secondary-btn:focus-visible,
 .discover-danger-btn:focus-visible,
