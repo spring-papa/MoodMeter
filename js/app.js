@@ -12,9 +12,9 @@
     const STORAGE_KEY_SYNC_META = 'moodmeter:syncMeta';
     const QUIZ_QUESTION_COUNT_PER_TAB = 2;
     const QUIZ_OPTION_COUNT = 4;
-    const MOOD_CARD_DISCOVERY_CHIP_LIMIT = 3;
-    const DISCOVER_CARD_MOOD_RIVER_THRESHOLD = 5;
-    const MOOD_CARD_TARGET_RIVER_THRESHOLD = 4;
+    const CHIP_RIVER_PIXELS_PER_SECOND = 22;
+    const CHIP_RIVER_MIN_DURATION = 12;
+    const CHIP_RIVER_MAX_DURATION = 28;
     const MOOD_TABS = ['yellow', 'green', 'blue', 'red'];
     const NAV_TABS = ['discover', ...MOOD_TABS];
     const CONSTELLATION_SPREAD_RADIUS = 38;
@@ -55,6 +55,7 @@
             editingId: null
         }
     };
+    let chipRiverFrameId = null;
 
     // DOM Elements
     const elements = {
@@ -705,6 +706,7 @@
 
         // Hash change
         window.addEventListener('hashchange', handleRoute);
+        window.addEventListener('resize', scheduleChipRiverSetup);
 
         // Handle keyboard navigation
         document.addEventListener('keydown', (e) => {
@@ -1029,6 +1031,8 @@
             </div>
         `;
 
+        scheduleChipRiverSetup();
+
         // Setup lazy loading for images
         setupLazyLoading();
     }
@@ -1097,48 +1101,84 @@
             resetDiscoverDraft();
             navigateTo('#/discover/new');
         });
+
+        scheduleChipRiverSetup();
     }
 
     function renderDiscoverMoodChips(moods) {
-        if (moods.length >= DISCOVER_CARD_MOOD_RIVER_THRESHOLD && !prefersReducedMotion()) {
-            const chips = moods.map(mood => `
-                <span class="discover-mood-chip ${mood.tab}">${escapeHtml(getMoodDisplayTitle(mood.title))}</span>
-            `).join('');
+        const chips = moods.map(mood => `
+            <span class="discover-mood-chip ${mood.tab}">${escapeHtml(getMoodDisplayTitle(mood.title))}</span>
+        `).join('');
 
-            return renderChipRiver({
-                className: 'discover-card-moods chip-river chip-river--mood',
-                label: '알아본 감정',
-                duration: `${Math.max(20, moods.length * 5)}s`,
-                chips
-            });
+        if (prefersReducedMotion()) {
+            return `
+                <div class="discover-card-moods" aria-label="알아본 감정">
+                    ${chips}
+                </div>
+            `;
         }
 
-        const visibleMoods = moods.slice(0, 4);
-        const extraCount = Math.max(moods.length - visibleMoods.length, 0);
-
-        return `
-            <div class="discover-card-moods" aria-label="알아본 감정">
-                ${visibleMoods.map(mood => `
-                    <span class="discover-mood-chip ${mood.tab}">${escapeHtml(getMoodDisplayTitle(mood.title))}</span>
-                `).join('')}
-                ${extraCount ? `<span class="discover-mood-chip more">+${extraCount}</span>` : ''}
-            </div>
-        `;
+        return renderChipRiver({
+            className: 'discover-card-moods chip-river chip-river--mood',
+            label: '알아본 감정',
+            chips
+        });
     }
 
-    function renderChipRiver({ className, label, duration, chips }) {
+    function renderChipRiver({ className, label, chips }) {
         return `
-            <div class="${className}" role="group" tabindex="0" aria-label="${escapeHtml(label)}" style="--chip-river-duration: ${duration};">
+            <div class="${className}" role="group" tabindex="0" aria-label="${escapeHtml(label)}" data-chip-river>
                 <div class="chip-river__track">
                     <div class="chip-river__set">
-                        ${chips}
-                    </div>
-                    <div class="chip-river__set" aria-hidden="true">
                         ${chips}
                     </div>
                 </div>
             </div>
         `;
+    }
+
+    function scheduleChipRiverSetup() {
+        if (chipRiverFrameId !== null) {
+            cancelAnimationFrame(chipRiverFrameId);
+        }
+
+        chipRiverFrameId = requestAnimationFrame(() => {
+            chipRiverFrameId = null;
+            setupChipRivers();
+        });
+    }
+
+    function setupChipRivers() {
+        if (prefersReducedMotion()) return;
+
+        document.querySelectorAll('[data-chip-river]').forEach(river => {
+            const track = river.querySelector('.chip-river__track');
+            const set = track?.querySelector('.chip-river__set:not([aria-hidden="true"])');
+            if (!track || !set) return;
+
+            track.querySelectorAll('.chip-river__set[aria-hidden="true"]').forEach(clone => clone.remove());
+            river.classList.remove('is-flowing');
+
+            const shouldFlow = set.scrollWidth > river.clientWidth + 1;
+            if (!shouldFlow) return;
+
+            const clone = set.cloneNode(true);
+            clone.setAttribute('aria-hidden', 'true');
+            track.appendChild(clone);
+            const distance = set.getBoundingClientRect().width;
+            const duration = clamp(
+                distance / CHIP_RIVER_PIXELS_PER_SECOND,
+                CHIP_RIVER_MIN_DURATION,
+                CHIP_RIVER_MAX_DURATION
+            );
+            river.style.setProperty('--chip-river-distance', `${distance}px`);
+            river.style.setProperty('--chip-river-duration', `${duration.toFixed(2)}s`);
+            river.classList.add('is-flowing');
+        });
+    }
+
+    function clamp(value, min, max) {
+        return Math.min(max, Math.max(min, value));
     }
 
     function hasDiscoverDraftProgress() {
@@ -2249,29 +2289,23 @@
 
     function renderMoodCardDiscoveryChips(discoveryTargets, mood) {
         const label = `${getMoodDisplayTitle(mood.title)}을 느꼈던 일`;
+        const chips = discoveryTargets.map(target => `
+            <span class="mood-card-discovery-chip">${escapeHtml(target)}</span>
+        `).join('');
 
-        if (discoveryTargets.length >= MOOD_CARD_TARGET_RIVER_THRESHOLD && !prefersReducedMotion()) {
-            const chips = discoveryTargets.map(target => `
-                <span class="mood-card-discovery-chip">${escapeHtml(target)}</span>
-            `).join('');
-
-            return renderChipRiver({
-                className: `mood-card-discoveries ${state.currentTab} chip-river chip-river--target`,
-                label,
-                duration: `${Math.max(28, discoveryTargets.length * 7)}s`,
-                chips
-            });
+        if (prefersReducedMotion()) {
+            return `
+                <div class="mood-card-discoveries ${state.currentTab}" aria-label="${escapeHtml(label)}">
+                    ${chips}
+                </div>
+            `;
         }
 
-        const visibleTargets = discoveryTargets.slice(0, MOOD_CARD_DISCOVERY_CHIP_LIMIT);
-        const extraCount = discoveryTargets.length - visibleTargets.length;
-
-        return `
-            <div class="mood-card-discoveries ${state.currentTab}" aria-label="${escapeHtml(label)}">
-                ${visibleTargets.map(target => `<span class="mood-card-discovery-chip">${escapeHtml(target)}</span>`).join('')}
-                ${extraCount > 0 ? `<span class="mood-card-discovery-chip more">+${extraCount}</span>` : ''}
-            </div>
-        `;
+        return renderChipRiver({
+            className: `mood-card-discoveries ${state.currentTab} chip-river chip-river--target`,
+            label,
+            chips
+        });
     }
 
     // Setup lazy loading with Intersection Observer

@@ -416,8 +416,12 @@ body {
 .chip-river__track {
     display: flex;
     width: max-content;
-    animation: chipRiverFlow var(--chip-river-duration, 24s) linear infinite;
+    transform: translate3d(0, 0, 0);
     will-change: transform;
+}
+
+.chip-river.is-flowing .chip-river__track {
+    animation: chipRiverFlow var(--chip-river-duration, 14s) linear infinite;
 }
 
 .chip-river__set {
@@ -425,6 +429,14 @@ body {
     flex: 0 0 auto;
     gap: 6px;
     padding-right: 6px;
+}
+
+.chip-river__set[aria-hidden="true"] {
+    display: none;
+}
+
+.chip-river.is-flowing .chip-river__set[aria-hidden="true"] {
+    display: flex;
 }
 
 .chip-river:hover .chip-river__track,
@@ -441,8 +453,8 @@ body {
 }
 
 @keyframes chipRiverFlow {
-    from { transform: translateX(0); }
-    to { transform: translateX(-50%); }
+    from { transform: translate3d(0, 0, 0); }
+    to { transform: translate3d(calc(-1 * var(--chip-river-distance, 50%)), 0, 0); }
 }
 
 /* Detail View */
