@@ -1,5 +1,5 @@
 // Service Worker for MoodMeter
-const CACHE_NAME = 'moodmeter-v29';
+const CACHE_NAME = 'moodmeter-v31';
 const IMAGE_CACHE_NAME = 'moodmeter-images-v1';
 const CACHE_DURATION = 30 * 24 * 60 * 60 * 1000; // 30 days in milliseconds
 
@@ -7,9 +7,9 @@ const CACHE_DURATION = 30 * 24 * 60 * 60 * 1000; // 30 days in milliseconds
 const STATIC_ASSETS = [
     './',
     './index.html',
-    './css/styles.css?v=29',
-    './js/firebase-cloud.js?v=29',
-    './js/app.js?v=29',
+    './css/styles.css?v=31',
+    './js/firebase-cloud.js?v=31',
+    './js/app.js?v=31',
     './moodmeter.json',
     './icon.png',
     './manifest.json'

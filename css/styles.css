@@ -582,6 +582,72 @@ body {
     gap: 8px;
 }
 
+.cloud-email-link-form {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 4px;
+    padding-top: 12px;
+    border-top: 1px solid var(--color-border);
+}
+
+.cloud-email-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    color: var(--color-text);
+    font-size: 0.9375rem;
+    font-weight: 600;
+}
+
+.cloud-email-input {
+    width: 100%;
+    min-height: 44px;
+    border: 1px solid var(--color-border);
+    border-radius: 10px;
+    padding: 12px;
+    font-size: 1rem;
+    background-color: #fff;
+}
+
+.cloud-email-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.cloud-email-link-btn {
+    width: 100%;
+    min-height: 44px;
+    border: none;
+    border-radius: 10px;
+    padding: 12px;
+    background-color: #4a4a4a;
+    color: #fff;
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: opacity var(--transition-fast), transform var(--transition-fast);
+}
+
+.cloud-email-hint,
+.cloud-email-message {
+    color: var(--color-text-secondary);
+    font-size: 0.875rem;
+}
+
+.cloud-email-message {
+    min-height: 20px;
+}
+
+.cloud-email-message.is-success {
+    color: #1f7a33;
+}
+
+.cloud-email-message.is-error {
+    color: var(--color-red);
+}
+
 .cloud-login-btn,
 .cloud-logout-btn {
     width: 100%;
@@ -607,13 +673,16 @@ body {
 }
 
 .cloud-login-btn:disabled,
-.cloud-logout-btn:disabled {
+.cloud-logout-btn:disabled,
+.cloud-email-input:disabled,
+.cloud-email-link-btn:disabled {
     opacity: 0.55;
     cursor: not-allowed;
 }
 
 .cloud-login-btn:not(:disabled):active,
-.cloud-logout-btn:not(:disabled):active {
+.cloud-logout-btn:not(:disabled):active,
+.cloud-email-link-btn:not(:disabled):active {
     transform: translateY(1px);
 }
 
@@ -1796,7 +1865,9 @@ body {
 .settings-header-btn:focus-visible,
 .detail-toggle-btn:focus-visible,
 .settings-input:focus-visible,
+.cloud-email-input:focus-visible,
 .settings-btn:focus-visible,
+.cloud-email-link-btn:focus-visible,
 .discover-primary-btn:focus-visible,
 .discover-secondary-btn:focus-visible,
 .discover-danger-btn:focus-visible,
