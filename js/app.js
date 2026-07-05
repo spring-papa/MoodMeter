@@ -2160,7 +2160,7 @@
         const visibleTargets = discoveryTargets.slice(0, MOOD_CARD_DISCOVERY_CHIP_LIMIT);
         const extraCount = discoveryTargets.length - visibleTargets.length;
         const discoveryChips = discoveryTargets.length ? `
-                    <div class="mood-card-discoveries" aria-label="${escapeHtml(getMoodDisplayTitle(mood.title))}을 느꼈던 일">
+                    <div class="mood-card-discoveries ${state.currentTab}" aria-label="${escapeHtml(getMoodDisplayTitle(mood.title))}을 느꼈던 일">
                         ${visibleTargets.map(target => `<span class="mood-card-discovery-chip">${escapeHtml(target)}</span>`).join('')}
                         ${extraCount > 0 ? `<span class="mood-card-discovery-chip more">+${extraCount}</span>` : ''}
                     </div>

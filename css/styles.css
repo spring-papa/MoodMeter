@@ -332,6 +332,7 @@ body {
     max-width: 100%;
     padding: 4px 8px;
     border-radius: 999px;
+    border: 1px solid transparent;
     background-color: #f3f4f6;
     color: var(--color-text-secondary);
     font-size: 0.75rem;
@@ -342,10 +343,34 @@ body {
 }
 
 .mood-card-discovery-chip.more {
-    background-color: #e8eef8;
     color: var(--color-text);
     font-weight: 600;
 }
+
+.mood-card-discoveries.yellow .mood-card-discovery-chip {
+    border-color: rgba(255, 215, 0, 0.45);
+    background-color: var(--color-yellow-light);
+}
+
+.mood-card-discoveries.green .mood-card-discovery-chip {
+    border-color: rgba(76, 175, 80, 0.28);
+    background-color: var(--color-green-light);
+}
+
+.mood-card-discoveries.blue .mood-card-discovery-chip {
+    border-color: rgba(33, 150, 243, 0.28);
+    background-color: var(--color-blue-light);
+}
+
+.mood-card-discoveries.red .mood-card-discovery-chip {
+    border-color: rgba(244, 67, 54, 0.28);
+    background-color: var(--color-red-light);
+}
+
+.mood-card-discoveries.yellow .mood-card-discovery-chip.more { color: #8a6d00; }
+.mood-card-discoveries.green .mood-card-discovery-chip.more { color: #2e7d32; }
+.mood-card-discoveries.blue .mood-card-discovery-chip.more { color: #1565c0; }
+.mood-card-discoveries.red .mood-card-discovery-chip.more { color: #c62828; }
 
 /* Detail View */
 .detail-view {
