@@ -326,6 +326,7 @@ body {
     flex-wrap: wrap;
     gap: 6px;
     margin-top: 10px;
+    min-width: 0;
 }
 
 .mood-card-discovery-chip {
@@ -371,6 +372,78 @@ body {
 .mood-card-discoveries.green .mood-card-discovery-chip.more { color: #2e7d32; }
 .mood-card-discoveries.blue .mood-card-discovery-chip.more { color: #1565c0; }
 .mood-card-discoveries.red .mood-card-discovery-chip.more { color: #c62828; }
+
+.chip-river {
+    position: relative;
+    flex-wrap: nowrap;
+    gap: 0;
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 24px, #000 calc(100% - 24px), transparent 100%);
+    mask-image: linear-gradient(90deg, transparent 0, #000 24px, #000 calc(100% - 24px), transparent 100%);
+}
+
+.chip-river::-webkit-scrollbar {
+    display: none;
+}
+
+.chip-river::before,
+.chip-river::after {
+    content: "";
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    flex: 0 0 20px;
+    width: 20px;
+    pointer-events: none;
+}
+
+.chip-river::before {
+    left: 0;
+    margin-right: -20px;
+    background: linear-gradient(90deg, var(--color-card-bg), rgba(255, 255, 255, 0));
+}
+
+.chip-river::after {
+    right: 0;
+    margin-left: -20px;
+    background: linear-gradient(270deg, var(--color-card-bg), rgba(255, 255, 255, 0));
+}
+
+.chip-river__track {
+    display: flex;
+    width: max-content;
+    animation: chipRiverFlow var(--chip-river-duration, 42s) linear infinite;
+    will-change: transform;
+}
+
+.chip-river__set {
+    display: flex;
+    flex: 0 0 auto;
+    gap: 6px;
+    padding-right: 6px;
+}
+
+.chip-river:hover .chip-river__track,
+.chip-river:focus .chip-river__track,
+.chip-river:focus-within .chip-river__track,
+.chip-river:active .chip-river__track,
+.discover-card:focus .chip-river__track,
+.mood-card:focus .chip-river__track {
+    animation-play-state: paused;
+}
+
+.chip-river--target .mood-card-discovery-chip {
+    max-width: 128px;
+}
+
+@keyframes chipRiverFlow {
+    from { transform: translateX(0); }
+    to { transform: translateX(-50%); }
+}
 
 /* Detail View */
 .detail-view {
@@ -824,6 +897,7 @@ body {
 }
 
 .discover-card-main {
+    flex: 1 1 auto;
     min-width: 0;
 }
 
@@ -1262,6 +1336,10 @@ body {
     box-shadow: 0 10px 24px rgba(33, 150, 243, 0.14);
 }
 
+.floating-chip-field {
+    isolation: isolate;
+}
+
 .constellation-decor {
     position: absolute;
     z-index: 1;
@@ -1337,10 +1415,14 @@ body {
     font-size: 0.875rem;
     font-weight: 700;
     line-height: 1.25;
-    animation: floatBubble 3.2s ease-in-out infinite;
+    animation: floatBubble 4.8s ease-in-out infinite;
     z-index: 2;
     transition: left 260ms ease, top 260ms ease, box-shadow 260ms ease;
     will-change: left, top;
+}
+
+.floating-chip {
+    will-change: transform;
 }
 
 .constellation-bubble.is-spread {
@@ -1385,8 +1467,9 @@ body {
 }
 
 @keyframes floatBubble {
-    0%, 100% { margin-top: 0; transform: translate(-50%, -50%) rotate(-1deg); }
-    50% { margin-top: -8px; transform: translate(-50%, -50%) rotate(1deg); }
+    0%, 100% { transform: translate(-50%, -50%) translate(0, 0) rotate(-0.7deg); }
+    45% { transform: translate(-50%, -50%) translate(2px, -3px) rotate(0.7deg); }
+    70% { transform: translate(-50%, -50%) translate(-1px, 2px) rotate(0.2deg); }
 }
 
 /* Quiz View */
@@ -1896,8 +1979,18 @@ body {
         transition-duration: 0.01ms !important;
     }
 
-    .constellation-bubble {
+    .chip-river__track,
+    .constellation-bubble,
+    .floating-chip {
         animation: none !important;
+    }
+
+    .chip-river__track {
+        transform: none !important;
+    }
+
+    .chip-river__set[aria-hidden="true"] {
+        display: none;
     }
 }
 
@@ -1925,6 +2018,7 @@ body {
 .mood-info-close:focus-visible,
 .mood-info-select-btn:focus-visible,
 .selected-mood-chip:focus-visible,
+.chip-river:focus-visible,
 .quiz-primary-btn:focus-visible,
 .quiz-secondary-btn:focus-visible,
 .quiz-story-toggle:focus-visible,

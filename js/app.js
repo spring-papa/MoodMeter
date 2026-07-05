@@ -13,6 +13,8 @@
     const QUIZ_QUESTION_COUNT_PER_TAB = 2;
     const QUIZ_OPTION_COUNT = 4;
     const MOOD_CARD_DISCOVERY_CHIP_LIMIT = 3;
+    const DISCOVER_CARD_MOOD_RIVER_THRESHOLD = 5;
+    const MOOD_CARD_TARGET_RIVER_THRESHOLD = 4;
     const MOOD_TABS = ['yellow', 'green', 'blue', 'red'];
     const NAV_TABS = ['discover', ...MOOD_TABS];
     const CONSTELLATION_SPREAD_RADIUS = 38;
@@ -106,6 +108,10 @@
     function normalizeUserName(value) {
         if (typeof value !== 'string') return '';
         return value.trim().replace(/\s+/g, ' ');
+    }
+
+    function prefersReducedMotion() {
+        return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches || false;
     }
 
     function normalizeEmailInput(value) {
@@ -1059,18 +1065,12 @@
             <div class="discover-list" role="list">
                 ${discoveries.map(discovery => {
                     const moods = discovery.moods.map(hydrateStoredMood);
-                    const extraCount = Math.max(moods.length - 4, 0);
 
                     return `
                         <a class="discover-card" href="#/discover/${encodeURIComponent(discovery.id)}" role="listitem">
                             <div class="discover-card-main">
                                 <h2 class="discover-card-title">${escapeHtml(discovery.target)}</h2>
-                                <div class="discover-card-moods" aria-label="알아본 감정">
-                                    ${moods.slice(0, 4).map(mood => `
-                                        <span class="discover-mood-chip ${mood.tab}">${escapeHtml(getMoodDisplayTitle(mood.title))}</span>
-                                    `).join('')}
-                                    ${extraCount ? `<span class="discover-mood-chip more">+${extraCount}</span>` : ''}
-                                </div>
+                                ${renderDiscoverMoodChips(moods)}
                             </div>
                             <time class="discover-card-date" datetime="${escapeHtml(discovery.createdAt)}">${formatDate(discovery.createdAt)}</time>
                         </a>
@@ -1097,6 +1097,48 @@
             resetDiscoverDraft();
             navigateTo('#/discover/new');
         });
+    }
+
+    function renderDiscoverMoodChips(moods) {
+        if (moods.length >= DISCOVER_CARD_MOOD_RIVER_THRESHOLD && !prefersReducedMotion()) {
+            const chips = moods.map(mood => `
+                <span class="discover-mood-chip ${mood.tab}">${escapeHtml(getMoodDisplayTitle(mood.title))}</span>
+            `).join('');
+
+            return renderChipRiver({
+                className: 'discover-card-moods chip-river chip-river--mood',
+                label: '알아본 감정',
+                duration: `${Math.max(34, moods.length * 8)}s`,
+                chips
+            });
+        }
+
+        const visibleMoods = moods.slice(0, 4);
+        const extraCount = Math.max(moods.length - visibleMoods.length, 0);
+
+        return `
+            <div class="discover-card-moods" aria-label="알아본 감정">
+                ${visibleMoods.map(mood => `
+                    <span class="discover-mood-chip ${mood.tab}">${escapeHtml(getMoodDisplayTitle(mood.title))}</span>
+                `).join('')}
+                ${extraCount ? `<span class="discover-mood-chip more">+${extraCount}</span>` : ''}
+            </div>
+        `;
+    }
+
+    function renderChipRiver({ className, label, duration, chips }) {
+        return `
+            <div class="${className}" role="group" tabindex="0" aria-label="${escapeHtml(label)}" style="--chip-river-duration: ${duration};">
+                <div class="chip-river__track">
+                    <div class="chip-river__set">
+                        ${chips}
+                    </div>
+                    <div class="chip-river__set" aria-hidden="true">
+                        ${chips}
+                    </div>
+                </div>
+            </div>
+        `;
     }
 
     function hasDiscoverDraftProgress() {
@@ -1727,7 +1769,7 @@
         });
 
         return `
-            <div class="constellation-stage" id="constellation-stage" aria-label="알아본 감정 결과">
+            <div class="constellation-stage floating-chip-field" id="constellation-stage" aria-label="알아본 감정 결과">
                 <div class="constellation-decor top-left" aria-hidden="true">반짝</div>
                 <div class="constellation-decor bottom-right" aria-hidden="true">마음 알아가기</div>
                 <svg class="constellation-lines" viewBox="0 0 100 100" aria-hidden="true" preserveAspectRatio="none">
@@ -1739,7 +1781,7 @@
                     <span>${escapeHtml(discovery.target)}</span>
                 </div>
                 ${positions.map((position, index) => `
-                    <div class="constellation-bubble ${position.mood.tab}"
+                    <div class="constellation-bubble floating-chip ${position.mood.tab}"
                          data-bubble-index="${index}"
                          data-base-x="${position.x}"
                          data-base-y="${position.y}"
@@ -2181,13 +2223,8 @@
     function renderMoodCard(mood) {
         const imageUrl = `images/${encodeURIComponent(mood.key)}.jpg`;
         const discoveryTargets = getDiscoveryTargetsForMood(state.currentTab, mood.key);
-        const visibleTargets = discoveryTargets.slice(0, MOOD_CARD_DISCOVERY_CHIP_LIMIT);
-        const extraCount = discoveryTargets.length - visibleTargets.length;
         const discoveryChips = discoveryTargets.length ? `
-                    <div class="mood-card-discoveries ${state.currentTab}" aria-label="${escapeHtml(getMoodDisplayTitle(mood.title))}을 느꼈던 일">
-                        ${visibleTargets.map(target => `<span class="mood-card-discovery-chip">${escapeHtml(target)}</span>`).join('')}
-                        ${extraCount > 0 ? `<span class="mood-card-discovery-chip more">+${extraCount}</span>` : ''}
-                    </div>
+                    ${renderMoodCardDiscoveryChips(discoveryTargets, mood)}
         ` : '';
 
         return `
@@ -2207,6 +2244,33 @@
                     ${discoveryChips}
                 </div>
             </a>
+        `;
+    }
+
+    function renderMoodCardDiscoveryChips(discoveryTargets, mood) {
+        const label = `${getMoodDisplayTitle(mood.title)}을 느꼈던 일`;
+
+        if (discoveryTargets.length >= MOOD_CARD_TARGET_RIVER_THRESHOLD && !prefersReducedMotion()) {
+            const chips = discoveryTargets.map(target => `
+                <span class="mood-card-discovery-chip">${escapeHtml(target)}</span>
+            `).join('');
+
+            return renderChipRiver({
+                className: `mood-card-discoveries ${state.currentTab} chip-river chip-river--target`,
+                label,
+                duration: `${Math.max(48, discoveryTargets.length * 12)}s`,
+                chips
+            });
+        }
+
+        const visibleTargets = discoveryTargets.slice(0, MOOD_CARD_DISCOVERY_CHIP_LIMIT);
+        const extraCount = discoveryTargets.length - visibleTargets.length;
+
+        return `
+            <div class="mood-card-discoveries ${state.currentTab}" aria-label="${escapeHtml(label)}">
+                ${visibleTargets.map(target => `<span class="mood-card-discovery-chip">${escapeHtml(target)}</span>`).join('')}
+                ${extraCount > 0 ? `<span class="mood-card-discovery-chip more">+${extraCount}</span>` : ''}
+            </div>
         `;
     }
 
