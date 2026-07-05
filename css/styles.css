@@ -416,7 +416,7 @@ body {
 .chip-river__track {
     display: flex;
     width: max-content;
-    animation: chipRiverFlow var(--chip-river-duration, 42s) linear infinite;
+    animation: chipRiverFlow var(--chip-river-duration, 24s) linear infinite;
     will-change: transform;
 }
 

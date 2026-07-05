@@ -1108,7 +1108,7 @@
             return renderChipRiver({
                 className: 'discover-card-moods chip-river chip-river--mood',
                 label: '알아본 감정',
-                duration: `${Math.max(34, moods.length * 8)}s`,
+                duration: `${Math.max(20, moods.length * 5)}s`,
                 chips
             });
         }
@@ -2258,7 +2258,7 @@
             return renderChipRiver({
                 className: `mood-card-discoveries ${state.currentTab} chip-river chip-river--target`,
                 label,
-                duration: `${Math.max(48, discoveryTargets.length * 12)}s`,
+                duration: `${Math.max(28, discoveryTargets.length * 7)}s`,
                 chips
             });
         }
