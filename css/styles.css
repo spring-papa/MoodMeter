@@ -519,6 +519,83 @@ body {
     color: var(--color-text-secondary);
 }
 
+.cloud-sync-section {
+    margin-top: 24px;
+    padding-top: 20px;
+    border-top: 1px solid var(--color-border);
+}
+
+.cloud-sync-card {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.cloud-sync-status {
+    min-height: 24px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background-color: #f7f7f7;
+    color: var(--color-text-secondary);
+    font-size: 0.9375rem;
+}
+
+.cloud-sync-status.is-success {
+    background-color: var(--color-green-light);
+    color: #1f7a33;
+}
+
+.cloud-sync-status.is-error {
+    background-color: var(--color-red-light);
+    color: #b42318;
+}
+
+.cloud-sync-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.cloud-login-btn,
+.cloud-logout-btn {
+    width: 100%;
+    min-height: 44px;
+    border: none;
+    border-radius: 10px;
+    padding: 12px;
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: opacity var(--transition-fast), transform var(--transition-fast);
+}
+
+.cloud-login-btn {
+    background-color: #ffffff;
+    color: #1f1f1f;
+    border: 1px solid var(--color-border);
+}
+
+.cloud-logout-btn {
+    background-color: #f0f0f0;
+    color: var(--color-text);
+}
+
+.cloud-login-btn:disabled,
+.cloud-logout-btn:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+.cloud-login-btn:not(:disabled):active,
+.cloud-logout-btn:not(:disabled):active {
+    transform: translateY(1px);
+}
+
+.cloud-sync-note {
+    color: var(--color-text-secondary);
+    font-size: 0.875rem;
+}
+
 /* Discover View */
 .discover-view {
     display: flex;

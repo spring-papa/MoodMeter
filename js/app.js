@@ -4,9 +4,12 @@
 
     const DEFAULT_USER_NAME = '봄이';
     const USER_NAME_MAX_LENGTH = 20;
+    const CURRENT_SCHEMA_VERSION = 2;
     const STORAGE_KEY_USER_NAME = 'moodmeter:userName';
     const STORAGE_KEY_DISCOVERIES = 'moodmeter:discoveries';
     const STORAGE_KEY_QUIZ_STATS = 'moodmeter:quizStats';
+    const STORAGE_KEY_SCHEMA_VERSION = 'moodmeter:schemaVersion';
+    const STORAGE_KEY_SYNC_META = 'moodmeter:syncMeta';
     const QUIZ_QUESTION_COUNT_PER_TAB = 2;
     const QUIZ_OPTION_COUNT = 4;
     const MOOD_TABS = ['yellow', 'green', 'blue', 'red'];
@@ -31,6 +34,13 @@
         userName: DEFAULT_USER_NAME,
         discoveries: [],
         quizStats: {},
+        cloud: {
+            available: false,
+            syncing: false,
+            user: null,
+            status: '',
+            error: ''
+        },
         quizSession: null,
         quizReviewExpandedMoodId: null,
         discoverDraft: {
@@ -58,11 +68,13 @@
 
     // Initialize App
     async function init() {
+        migrateLocalStorageIfNeeded();
         loadUserName();
         state.discoveries = loadDiscoveries();
         state.quizStats = loadQuizStats();
         await loadData();
         setupEventListeners();
+        setupCloudSyncIfAvailable();
         handleRoute();
         registerServiceWorker();
     }
@@ -81,6 +93,8 @@
     function saveUserName(name) {
         try {
             localStorage.setItem(STORAGE_KEY_USER_NAME, name);
+            syncUserProfileToCloud();
+            trackCloudEvent('user_name_saved');
             return true;
         } catch (error) {
             console.warn('Failed to save user name to localStorage:', error);
@@ -103,6 +117,152 @@
         return title.replace(/\s*마음$/u, '');
     }
 
+    function getDefaultSyncMeta() {
+        return {
+            lastSyncedAt: '',
+            pendingDiscoveryIds: [],
+            pendingDeletedDiscoveryIds: [],
+            pendingQuizStatIds: [],
+            lastCloudUserId: ''
+        };
+    }
+
+    function readSyncMeta() {
+        try {
+            const rawMeta = localStorage.getItem(STORAGE_KEY_SYNC_META);
+            if (!rawMeta) return getDefaultSyncMeta();
+
+            const parsedMeta = JSON.parse(rawMeta);
+            if (!parsedMeta || typeof parsedMeta !== 'object' || Array.isArray(parsedMeta)) {
+                return getDefaultSyncMeta();
+            }
+
+            return {
+                ...getDefaultSyncMeta(),
+                ...parsedMeta,
+                pendingDiscoveryIds: Array.isArray(parsedMeta.pendingDiscoveryIds) ? parsedMeta.pendingDiscoveryIds : [],
+                pendingDeletedDiscoveryIds: Array.isArray(parsedMeta.pendingDeletedDiscoveryIds) ? parsedMeta.pendingDeletedDiscoveryIds : [],
+                pendingQuizStatIds: Array.isArray(parsedMeta.pendingQuizStatIds) ? parsedMeta.pendingQuizStatIds : []
+            };
+        } catch (error) {
+            console.warn('Failed to load sync metadata from localStorage:', error);
+            return getDefaultSyncMeta();
+        }
+    }
+
+    function saveSyncMeta(meta) {
+        try {
+            localStorage.setItem(STORAGE_KEY_SYNC_META, JSON.stringify({
+                ...getDefaultSyncMeta(),
+                ...meta
+            }));
+            return true;
+        } catch (error) {
+            console.warn('Failed to save sync metadata to localStorage:', error);
+            return false;
+        }
+    }
+
+    function addPendingSyncId(metaKey, id) {
+        if (!id) return;
+
+        const meta = readSyncMeta();
+        meta[metaKey] = Array.from(new Set([...(meta[metaKey] || []), id]));
+        saveSyncMeta(meta);
+    }
+
+    function removePendingSyncId(metaKey, id) {
+        const meta = readSyncMeta();
+        meta[metaKey] = (meta[metaKey] || []).filter(item => item !== id);
+        saveSyncMeta(meta);
+    }
+
+    function isIsoDateString(value) {
+        if (typeof value !== 'string' || !value) return false;
+        return Number.isFinite(Date.parse(value));
+    }
+
+    function normalizeStoredMood(mood) {
+        if (!mood || typeof mood !== 'object') return null;
+
+        const tab = typeof mood.tab === 'string' ? mood.tab : '';
+        const key = typeof mood.key === 'string' ? mood.key : '';
+        if (!MOOD_TABS.includes(tab) || !key) return null;
+
+        return {
+            tab,
+            key,
+            title: typeof mood.title === 'string' ? mood.title : '',
+            description: typeof mood.description === 'string' ? mood.description : ''
+        };
+    }
+
+    function normalizeDiscovery(discovery) {
+        if (!discovery || typeof discovery !== 'object') return null;
+
+        const now = new Date().toISOString();
+        const target = typeof discovery.target === 'string'
+            ? normalizeDiscoverTarget(discovery.target)
+            : '';
+        const moods = Array.isArray(discovery.moods)
+            ? discovery.moods.map(normalizeStoredMood).filter(Boolean)
+            : [];
+
+        if (!target || !moods.length) return null;
+
+        return {
+            id: typeof discovery.id === 'string' && discovery.id
+                ? discovery.id
+                : `dis_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+            target,
+            moods,
+            createdAt: isIsoDateString(discovery.createdAt) ? discovery.createdAt : now,
+            updatedAt: isIsoDateString(discovery.updatedAt)
+                ? discovery.updatedAt
+                : isIsoDateString(discovery.createdAt)
+                    ? discovery.createdAt
+                    : now,
+            syncStatus: discovery.syncStatus || 'pending'
+        };
+    }
+
+    function createLocalStorageBackup() {
+        try {
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+            localStorage.setItem(`moodmeter:backup:v1:${timestamp}`, JSON.stringify({
+                userName: localStorage.getItem(STORAGE_KEY_USER_NAME),
+                discoveries: localStorage.getItem(STORAGE_KEY_DISCOVERIES),
+                quizStats: localStorage.getItem(STORAGE_KEY_QUIZ_STATS),
+                backedUpAt: new Date().toISOString()
+            }));
+        } catch (error) {
+            console.warn('Failed to back up MoodMeter localStorage before migration:', error);
+        }
+    }
+
+    function migrateLocalStorageIfNeeded() {
+        try {
+            const schemaVersion = localStorage.getItem(STORAGE_KEY_SCHEMA_VERSION);
+            const needsMigration = schemaVersion !== String(CURRENT_SCHEMA_VERSION);
+
+            if (needsMigration) {
+                createLocalStorageBackup();
+
+                const discoveries = loadDiscoveries();
+                const quizStats = loadQuizStats();
+                localStorage.setItem(STORAGE_KEY_DISCOVERIES, JSON.stringify(discoveries));
+                localStorage.setItem(STORAGE_KEY_QUIZ_STATS, JSON.stringify(quizStats));
+                localStorage.setItem(STORAGE_KEY_SCHEMA_VERSION, String(CURRENT_SCHEMA_VERSION));
+            }
+
+            if (!localStorage.getItem(STORAGE_KEY_SYNC_META)) {
+                saveSyncMeta(getDefaultSyncMeta());
+            }
+        } catch (error) {
+            console.warn('Failed to migrate MoodMeter localStorage:', error);
+        }
+    }
+
     function loadDiscoveries() {
         try {
             const rawDiscoveries = localStorage.getItem(STORAGE_KEY_DISCOVERIES);
@@ -111,12 +271,7 @@
             const parsedDiscoveries = JSON.parse(rawDiscoveries);
             if (!Array.isArray(parsedDiscoveries)) return [];
 
-            return parsedDiscoveries.filter(discovery => {
-                return discovery
-                    && typeof discovery.id === 'string'
-                    && typeof discovery.target === 'string'
-                    && Array.isArray(discovery.moods);
-            });
+            return parsedDiscoveries.map(normalizeDiscovery).filter(Boolean);
         } catch (error) {
             console.warn('Failed to load mood discoveries from localStorage:', error);
             return [];
@@ -171,7 +326,9 @@
             wrong: Number.isFinite(record.wrong) ? Math.max(0, record.wrong) : 0,
             lastShownAt: typeof record.lastShownAt === 'string' ? record.lastShownAt : '',
             lastAnsweredAt: typeof record.lastAnsweredAt === 'string' ? record.lastAnsweredAt : '',
-            lastWrongAt: typeof record.lastWrongAt === 'string' ? record.lastWrongAt : ''
+            lastWrongAt: typeof record.lastWrongAt === 'string' ? record.lastWrongAt : '',
+            updatedAt: typeof record.updatedAt === 'string' ? record.updatedAt : '',
+            syncStatus: record.syncStatus || 'pending'
         };
     }
 
@@ -185,12 +342,18 @@
 
     function recordQuizShown(moods) {
         const now = new Date().toISOString();
+        const changedMoodIds = [];
         moods.forEach(mood => {
             const stat = getQuizStat(mood.moodId);
             stat.shown += 1;
             stat.lastShownAt = now;
+            stat.updatedAt = now;
+            stat.syncStatus = 'pending';
+            addPendingSyncId('pendingQuizStatIds', mood.moodId);
+            changedMoodIds.push(mood.moodId);
         });
         saveQuizStats();
+        changedMoodIds.forEach(moodId => syncQuizStatToCloud(moodId, state.quizStats[moodId]));
     }
 
     function recordQuizAnswer(mood, isCorrect) {
@@ -203,7 +366,11 @@
             stat.lastWrongAt = now;
         }
         stat.lastAnsweredAt = now;
+        stat.updatedAt = now;
+        stat.syncStatus = 'pending';
+        addPendingSyncId('pendingQuizStatIds', mood.moodId);
         saveQuizStats();
+        syncQuizStatToCloud(mood.moodId, stat);
     }
 
     function createDiscovery(target, selectedMoods) {
@@ -213,10 +380,16 @@
             target,
             moods: selectedMoods.map(toStoredMood),
             createdAt: now,
-            updatedAt: now
+            updatedAt: now,
+            syncStatus: 'pending'
         };
 
         const saved = saveDiscoveries([discovery, ...state.discoveries]);
+        if (saved) {
+            addPendingSyncId('pendingDiscoveryIds', discovery.id);
+            syncDiscoveryToCloud(discovery);
+            trackCloudEvent('discovery_created', { mood_count: discovery.moods.length });
+        }
         return saved ? discovery : null;
     }
 
@@ -229,15 +402,34 @@
                 ...discovery,
                 target,
                 moods: selectedMoods.map(toStoredMood),
-                updatedAt: now
+                updatedAt: now,
+                syncStatus: 'pending'
             };
         });
 
-        return saveDiscoveries(discoveries);
+        const saved = saveDiscoveries(discoveries);
+        if (saved) {
+            const discovery = discoveries.find(item => item.id === id);
+            addPendingSyncId('pendingDiscoveryIds', id);
+            syncDiscoveryToCloud(discovery);
+            trackCloudEvent('discovery_updated', { mood_count: discovery?.moods?.length || 0 });
+        }
+        return saved;
     }
 
     function deleteDiscovery(id) {
-        return saveDiscoveries(state.discoveries.filter(discovery => discovery.id !== id));
+        const discovery = findDiscoveryById(id);
+        const saved = saveDiscoveries(state.discoveries.filter(item => item.id !== id));
+        if (saved) {
+            if (discovery?.syncStatus === 'synced') {
+                addPendingSyncId('pendingDeletedDiscoveryIds', id);
+            } else {
+                removePendingSyncId('pendingDiscoveryIds', id);
+            }
+            deleteDiscoveryFromCloud(id);
+            trackCloudEvent('discovery_deleted');
+        }
+        return saved;
     }
 
     function findDiscoveryById(id) {
@@ -501,6 +693,139 @@
         });
     }
 
+    function getCloud() {
+        return window.MoodMeterCloud || null;
+    }
+
+    function isSettingsRoute() {
+        return (window.location.hash || '#/').slice(2).split('/').filter(Boolean)[0] === 'settings';
+    }
+
+    function setupCloudSyncIfAvailable() {
+        if (!getCloud() && !window.MoodMeterCloudReady) {
+            window.addEventListener('moodmeter-cloud-ready', setupCloudSyncIfAvailable, { once: true });
+            return;
+        }
+
+        const ready = window.MoodMeterCloudReady || Promise.resolve(getCloud()?.init?.());
+        Promise.resolve(ready)
+            .then(result => {
+                const cloud = getCloud();
+                state.cloud.available = Boolean(cloud && result?.available !== false);
+
+                if (!cloud) return;
+
+                cloud.onUserChanged(user => {
+                    state.cloud.user = user;
+                    state.cloud.status = user
+                        ? '기록이 안전하게 보관되고 있어요.'
+                        : '지금은 이 기기에만 기록되고 있어요.';
+                    state.cloud.error = '';
+
+                    if (user) {
+                        refreshLocalDataFromCloud();
+                    }
+
+                    if (isSettingsRoute()) renderSettings();
+                });
+            })
+            .catch(error => {
+                console.warn('MoodMeter cloud sync is unavailable:', error);
+                state.cloud.available = false;
+                state.cloud.error = '온라인 보관을 준비하지 못했어요. 이 기기에는 계속 저장돼요.';
+                if (isSettingsRoute()) renderSettings();
+            });
+    }
+
+    function refreshLocalDataFromCloud() {
+        const cloud = getCloud();
+        if (!cloud?.mergeCloudDataToLocal) return;
+
+        state.cloud.syncing = true;
+        cloud.mergeCloudDataToLocal()
+            .then(result => {
+                if (result?.ok) {
+                    loadUserName();
+                    state.discoveries = loadDiscoveries();
+                    state.quizStats = loadQuizStats();
+                    state.cloud.status = '기록이 안전하게 보관되고 있어요.';
+                    state.cloud.error = '';
+                    trackCloudEvent('cloud_data_merged');
+                }
+            })
+            .catch(error => {
+                console.warn('Failed to refresh local data from cloud:', error);
+                state.cloud.error = '이 기기에는 저장되었지만, 온라인 보관은 잠시 뒤 다시 시도해 주세요.';
+            })
+            .finally(() => {
+                state.cloud.syncing = false;
+                if (isSettingsRoute()) renderSettings();
+            });
+    }
+
+    function syncUserProfileToCloud() {
+        const cloud = getCloud();
+        if (!cloud?.saveUserProfile || !cloud.getCurrentUser?.()) return;
+
+        cloud.saveUserProfile().then(result => {
+            if (!result?.ok) {
+                state.cloud.error = '이 기기에는 저장되었지만, 온라인 보관은 잠시 뒤 다시 시도해 주세요.';
+            }
+            if (isSettingsRoute()) renderSettings();
+        });
+    }
+
+    function syncDiscoveryToCloud(discovery) {
+        const cloud = getCloud();
+        if (!cloud?.saveDiscovery || !cloud.getCurrentUser?.() || !discovery) return;
+
+        cloud.saveDiscovery(discovery).then(result => {
+            state.discoveries = loadDiscoveries();
+            if (result?.ok) {
+                removePendingSyncId('pendingDiscoveryIds', discovery.id);
+                state.cloud.status = '기록이 안전하게 보관되고 있어요.';
+                state.cloud.error = '';
+            } else {
+                state.cloud.error = '이 기기에는 저장되었지만, 온라인 보관은 잠시 뒤 다시 시도해 주세요.';
+            }
+            if (state.currentTab === 'discover') handleRoute();
+        });
+    }
+
+    function deleteDiscoveryFromCloud(id) {
+        const cloud = getCloud();
+        if (!cloud?.deleteDiscovery || !cloud.getCurrentUser?.() || !id) return;
+
+        cloud.deleteDiscovery(id).then(result => {
+            if (result?.ok) {
+                removePendingSyncId('pendingDeletedDiscoveryIds', id);
+            } else {
+                state.cloud.error = '이 기기에서는 지웠지만, 온라인 기록 정리는 잠시 뒤 다시 시도해 주세요.';
+            }
+            if (isSettingsRoute()) renderSettings();
+        });
+    }
+
+    function syncQuizStatToCloud(moodId, stat) {
+        const cloud = getCloud();
+        if (!cloud?.saveQuizStats || !cloud.getCurrentUser?.() || !moodId) return;
+
+        cloud.saveQuizStats(moodId, stat).then(result => {
+            state.quizStats = loadQuizStats();
+            if (result?.ok) {
+                removePendingSyncId('pendingQuizStatIds', moodId);
+            } else {
+                state.cloud.error = '이 기기에는 저장되었지만, 온라인 보관은 잠시 뒤 다시 시도해 주세요.';
+            }
+        });
+    }
+
+    function trackCloudEvent(eventName, params = {}) {
+        const cloud = getCloud();
+        if (!cloud?.trackEvent) return;
+        cloud.trackEvent(eventName, params);
+    }
+
     // Navigate to a route
     function navigateTo(hash) {
         if (window.location.hash === hash) {
@@ -523,6 +848,9 @@
     function handleRoute() {
         const hash = window.location.hash || '#/';
         const parts = hash.slice(2).split('/').filter(Boolean);
+        trackCloudEvent('screen_view', {
+            firebase_screen: parts[0] || 'yellow'
+        });
 
         if (parts.length === 0) {
             // Default to yellow
@@ -1500,6 +1828,8 @@
                 </form>
 
                 <p class="settings-preview">현재 적용 이름: <strong id="name-preview"></strong></p>
+
+                ${renderCloudSyncSection()}
             </div>
         `;
 
@@ -1558,6 +1888,98 @@
                 setStatus('초기화 저장에 실패했어요. 브라우저 설정을 확인해 주세요.', true);
             }
         });
+
+        bindCloudSyncSettings();
+    }
+
+    function renderCloudSyncSection() {
+        const user = state.cloud.user;
+        const isSignedIn = Boolean(user);
+        const statusMessage = state.cloud.syncing
+            ? '기록을 맞추는 중이에요...'
+            : state.cloud.error
+                ? state.cloud.error
+                : isSignedIn
+                    ? `${escapeHtml(user.displayName || user.email || state.userName)}님의 기록을 안전하게 보관하고 있어요.`
+                    : '지금은 이 기기에만 기록되고 있어요.';
+        const statusClass = state.cloud.error
+            ? 'is-error'
+            : isSignedIn && !state.cloud.syncing
+                ? 'is-success'
+                : '';
+
+        return `
+            <section class="cloud-sync-section" aria-labelledby="cloud-sync-title">
+                <h2 class="settings-title" id="cloud-sync-title">기록 보관</h2>
+                <div class="cloud-sync-card">
+                    <p class="settings-description">Google 계정으로 연결하면 다른 기기에서도 알아가기 기록을 이어서 볼 수 있어요.</p>
+                    <p class="cloud-sync-status ${statusClass}" aria-live="polite">${statusMessage}</p>
+                    <div class="cloud-sync-actions">
+                        ${isSignedIn ? `
+                            <button type="button" class="cloud-logout-btn" id="cloud-logout-btn" ${state.cloud.syncing ? 'disabled' : ''}>로그아웃</button>
+                        ` : `
+                            <button type="button" class="cloud-login-btn" id="cloud-login-btn" ${state.cloud.syncing ? 'disabled' : ''}>Google 계정으로 기록 보관하기</button>
+                        `}
+                    </div>
+                    <p class="cloud-sync-note">공용 기기라면 사용 후 로그아웃해 주세요.</p>
+                </div>
+            </section>
+        `;
+    }
+
+    function bindCloudSyncSettings() {
+        const loginBtn = document.getElementById('cloud-login-btn');
+        const logoutBtn = document.getElementById('cloud-logout-btn');
+        const cloud = getCloud();
+
+        if (loginBtn) {
+            loginBtn.addEventListener('click', async () => {
+                if (!cloud?.signInWithGoogle) {
+                    state.cloud.error = '온라인 보관을 준비하지 못했어요. 이 기기에는 계속 저장돼요.';
+                    renderSettings();
+                    return;
+                }
+
+                state.cloud.syncing = true;
+                state.cloud.error = '';
+                renderSettings();
+
+                const result = await cloud.signInWithGoogle();
+                state.cloud.syncing = false;
+                if (result?.ok) {
+                    state.cloud.user = result.user;
+                    state.cloud.status = '기록이 안전하게 보관되고 있어요.';
+                    state.cloud.error = '';
+                    loadUserName();
+                    state.discoveries = loadDiscoveries();
+                    state.quizStats = loadQuizStats();
+                } else {
+                    state.cloud.error = '로그인을 마치지 못했어요. 잠시 뒤 다시 시도해 주세요.';
+                }
+                renderSettings();
+            });
+        }
+
+        if (logoutBtn) {
+            logoutBtn.addEventListener('click', async () => {
+                if (!cloud?.signOutUser) return;
+
+                state.cloud.syncing = true;
+                state.cloud.error = '';
+                renderSettings();
+
+                const result = await cloud.signOutUser();
+                state.cloud.syncing = false;
+                if (result?.ok) {
+                    state.cloud.user = null;
+                    state.cloud.status = '지금은 이 기기에만 기록되고 있어요.';
+                    state.cloud.error = '';
+                } else {
+                    state.cloud.error = '로그아웃하지 못했어요. 잠시 뒤 다시 시도해 주세요.';
+                }
+                renderSettings();
+            });
+        }
     }
 
     // Render a mood card
