@@ -321,6 +321,32 @@ body {
     overflow: hidden;
 }
 
+.mood-card-discoveries {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 10px;
+}
+
+.mood-card-discovery-chip {
+    max-width: 100%;
+    padding: 4px 8px;
+    border-radius: 999px;
+    background-color: #f3f4f6;
+    color: var(--color-text-secondary);
+    font-size: 0.75rem;
+    line-height: 1.25;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mood-card-discovery-chip.more {
+    background-color: #e8eef8;
+    color: var(--color-text);
+    font-weight: 600;
+}
+
 /* Detail View */
 .detail-view {
     display: flex;

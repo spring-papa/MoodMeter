@@ -240,6 +240,8 @@ async function init() {
             console.warn("Firebase Analytics is unavailable:", analyticsError);
         }
 
+        initialized = true;
+
         onAuthStateChanged(auth, async user => {
             currentUser = user || null;
             notifyUserChanged();
@@ -255,7 +257,6 @@ async function init() {
             }
         });
 
-        initialized = true;
         return { available: true, analyticsReady, error: null };
     } catch (error) {
         initError = error;

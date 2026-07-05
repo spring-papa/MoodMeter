@@ -12,6 +12,7 @@
     const STORAGE_KEY_SYNC_META = 'moodmeter:syncMeta';
     const QUIZ_QUESTION_COUNT_PER_TAB = 2;
     const QUIZ_OPTION_COUNT = 4;
+    const MOOD_CARD_DISCOVERY_CHIP_LIMIT = 3;
     const MOOD_TABS = ['yellow', 'green', 'blue', 'red'];
     const NAV_TABS = ['discover', ...MOOD_TABS];
     const CONSTELLATION_SPREAD_RADIUS = 38;
@@ -473,6 +474,22 @@
         return moodKeySet;
     }
 
+    function getDiscoveryTargetsForMood(tab, key) {
+        const moodId = getMoodId(tab, key);
+        const targets = [];
+        const seenTargets = new Set();
+
+        state.discoveries.forEach(discovery => {
+            const hasMood = discovery.moods.some(mood => getMoodId(mood.tab, mood.key) === moodId);
+            if (!hasMood || seenTargets.has(discovery.target)) return;
+
+            seenTargets.add(discovery.target);
+            targets.push(discovery.target);
+        });
+
+        return targets;
+    }
+
     function findMood(tab, key) {
         return state.data?.[tab]?.find(mood => mood.key === key) || null;
     }
@@ -739,10 +756,11 @@
 
     function refreshLocalDataFromCloud() {
         const cloud = getCloud();
-        if (!cloud?.mergeCloudDataToLocal) return;
+        const syncCloudData = cloud?.syncLocalDataToCloud || cloud?.mergeCloudDataToLocal;
+        if (!syncCloudData) return;
 
         state.cloud.syncing = true;
-        cloud.mergeCloudDataToLocal()
+        syncCloudData()
             .then(result => {
                 if (result?.ok) {
                     loadUserName();
@@ -750,11 +768,13 @@
                     state.quizStats = loadQuizStats();
                     state.cloud.status = '기록이 안전하게 보관되고 있어요.';
                     state.cloud.error = '';
-                    trackCloudEvent('cloud_data_merged');
+                    trackCloudEvent('cloud_data_synced');
+                } else if (result?.skipped) {
+                    state.cloud.status = '지금은 이 기기에만 기록되고 있어요.';
                 }
             })
             .catch(error => {
-                console.warn('Failed to refresh local data from cloud:', error);
+                console.warn('Failed to sync local data with cloud:', error);
                 state.cloud.error = '이 기기에는 저장되었지만, 온라인 보관은 잠시 뒤 다시 시도해 주세요.';
             })
             .finally(() => {
@@ -1985,21 +2005,31 @@
     // Render a mood card
     function renderMoodCard(mood) {
         const imageUrl = `images/${encodeURIComponent(mood.key)}.jpg`;
+        const discoveryTargets = getDiscoveryTargetsForMood(state.currentTab, mood.key);
+        const visibleTargets = discoveryTargets.slice(0, MOOD_CARD_DISCOVERY_CHIP_LIMIT);
+        const extraCount = discoveryTargets.length - visibleTargets.length;
+        const discoveryChips = discoveryTargets.length ? `
+                    <div class="mood-card-discoveries" aria-label="${escapeHtml(getMoodDisplayTitle(mood.title))}을 느꼈던 일">
+                        ${visibleTargets.map(target => `<span class="mood-card-discovery-chip">${escapeHtml(target)}</span>`).join('')}
+                        ${extraCount > 0 ? `<span class="mood-card-discovery-chip more">+${extraCount}</span>` : ''}
+                    </div>
+        ` : '';
 
         return `
-            <a href="#/${state.currentTab}/${mood.key}"
+            <a href="#/${state.currentTab}/${encodeURIComponent(mood.key)}"
                class="mood-card"
                role="listitem"
-               aria-label="${mood.title}">
+               aria-label="${escapeHtml(mood.title)}">
                 <div class="mood-card-image-wrapper">
                     <img class="mood-card-image"
                          data-src="${imageUrl}"
-                         alt="${mood.title}"
+                         alt="${escapeHtml(mood.title)}"
                          loading="lazy">
                 </div>
                 <div class="mood-card-content">
-                    <h2 class="mood-card-title">${mood.title}</h2>
-                    <p class="mood-card-description">${mood.description}</p>
+                    <h2 class="mood-card-title">${escapeHtml(mood.title)}</h2>
+                    <p class="mood-card-description">${escapeHtml(mood.description)}</p>
+                    ${discoveryChips}
                 </div>
             </a>
         `;
