@@ -382,6 +382,9 @@ body {
     overflow-y: hidden;
     scrollbar-width: none;
     -webkit-overflow-scrolling: touch;
+}
+
+.chip-river.is-flowing {
     -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 24px, #000 calc(100% - 24px), transparent 100%);
     mask-image: linear-gradient(90deg, transparent 0, #000 24px, #000 calc(100% - 24px), transparent 100%);
 }
@@ -390,8 +393,8 @@ body {
     display: none;
 }
 
-.chip-river::before,
-.chip-river::after {
+.chip-river.is-flowing::before,
+.chip-river.is-flowing::after {
     content: "";
     position: sticky;
     top: 0;
@@ -401,13 +404,13 @@ body {
     pointer-events: none;
 }
 
-.chip-river::before {
+.chip-river.is-flowing::before {
     left: 0;
     margin-right: -20px;
     background: linear-gradient(90deg, var(--color-card-bg), rgba(255, 255, 255, 0));
 }
 
-.chip-river::after {
+.chip-river.is-flowing::after {
     right: 0;
     margin-left: -20px;
     background: linear-gradient(270deg, var(--color-card-bg), rgba(255, 255, 255, 0));
