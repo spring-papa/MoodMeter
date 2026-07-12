@@ -12,9 +12,7 @@
     const STORAGE_KEY_SYNC_META = 'moodmeter:syncMeta';
     const QUIZ_QUESTION_COUNT_PER_TAB = 2;
     const QUIZ_OPTION_COUNT = 4;
-    const CHIP_RIVER_PIXELS_PER_SECOND = 22;
-    const CHIP_RIVER_MIN_DURATION = 12;
-    const CHIP_RIVER_MAX_DURATION = 28;
+    const CHIP_RIVER_PIXELS_PER_SECOND = 15;
     const MOOD_TABS = ['yellow', 'green', 'blue', 'red'];
     const NAV_TABS = ['discover', ...MOOD_TABS];
     const CONSTELLATION_SPREAD_RADIUS = 38;
@@ -1166,11 +1164,7 @@
             clone.setAttribute('aria-hidden', 'true');
             track.appendChild(clone);
             const distance = set.getBoundingClientRect().width;
-            const duration = clamp(
-                distance / CHIP_RIVER_PIXELS_PER_SECOND,
-                CHIP_RIVER_MIN_DURATION,
-                CHIP_RIVER_MAX_DURATION
-            );
+            const duration = distance / CHIP_RIVER_PIXELS_PER_SECOND;
             river.style.setProperty('--chip-river-distance', `${distance}px`);
             river.style.setProperty('--chip-river-duration', `${duration.toFixed(2)}s`);
             river.classList.add('is-flowing');
