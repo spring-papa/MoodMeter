@@ -1612,11 +1612,6 @@
         elements.mainContent.innerHTML = `
             <div class="quiz-view quiz-intro">
                 <section class="quiz-card quiz-landing-card">
-                    <div class="quiz-card-sky" aria-hidden="true">
-                        <span>마음 탐험</span>
-                        <span>생각 톡톡</span>
-                        <span>그림 단서</span>
-                    </div>
                     <p class="quiz-kicker">색깔마다 2개씩</p>
                     <h2 class="quiz-title">그림 속 마음을 찾아볼까요?</h2>
                     <p class="quiz-description">그림과 짧은 단서를 보고 어울리는 감정을 골라요. 몰랐던 감정은 나중에 다시 살펴볼 수 있어요.</p>
@@ -1682,10 +1677,12 @@
                         ` : ''}
                     </div>
                 </section>
-                <div class="quiz-options" role="list">
-                    ${question.options.map(option => renderQuizOption(question, option)).join('')}
+                <div class="quiz-answer-area ${question.answered ? 'is-answered' : ''}">
+                    <div class="quiz-options" role="list">
+                        ${question.options.map(option => renderQuizOption(question, option)).join('')}
+                    </div>
+                    ${question.answered ? renderQuizFeedback(question) : ''}
                 </div>
-                ${question.answered ? renderQuizFeedback(question) : ''}
             </div>
         `;
 
@@ -1733,7 +1730,8 @@
                     data-quiz-option="${option.moodId}"
                     ${question.answered ? 'disabled' : ''}
                     role="listitem">
-                ${escapeHtml(getMoodDisplayTitle(option.title))}
+                <span class="quiz-option-dot" aria-hidden="true"></span>
+                <span>${escapeHtml(getMoodDisplayTitle(option.title))}</span>
             </button>
         `;
     }
@@ -1744,15 +1742,15 @@
             : `이 감정은 ${escapeHtml(question.mood.title)}이에요.`;
 
         return `
-            <div class="quiz-feedback-backdrop" role="presentation">
-                <section class="quiz-feedback ${question.correct ? 'correct' : 'wrong'}" role="dialog" aria-modal="true" aria-live="polite" aria-label="퀴즈 결과">
+            <section class="quiz-feedback ${question.correct ? 'correct' : 'wrong'}" aria-live="polite" aria-label="퀴즈 결과">
+                <div>
                     <p class="quiz-feedback-kicker">${question.correct ? '좋아요' : '새로 알았어요'}</p>
                     <p class="quiz-feedback-message">${message}</p>
-                    <button type="button" class="quiz-primary-btn" id="quiz-next-btn">
-                        ${state.quizSession.currentIndex >= state.quizSession.questions.length - 1 ? '결과 보기' : '다음 문제'}
-                    </button>
-                </section>
-            </div>
+                </div>
+                <button type="button" class="quiz-primary-btn" id="quiz-next-btn">
+                    ${state.quizSession.currentIndex >= state.quizSession.questions.length - 1 ? '결과 보기' : '다음 문제'}
+                </button>
+            </section>
         `;
     }
 
