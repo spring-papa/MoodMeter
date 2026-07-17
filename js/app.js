@@ -52,7 +52,7 @@
         data: null,
         currentTab: 'yellow',
         currentMood: null,
-        showImage: false,
+        detailStoryExpanded: false,
         loading: true,
         error: null,
         userName: DEFAULT_USER_NAME,
@@ -963,12 +963,13 @@
         trackCloudEvent('screen_view', {
             firebase_screen: parts[0] || 'yellow'
         });
+        elements.mainContent.classList.remove('detail-main');
 
         if (parts.length === 0) {
             // Default to yellow
             state.currentTab = 'yellow';
             state.currentMood = null;
-            state.showImage = false;
+            state.detailStoryExpanded = false;
             renderList();
             return;
         }
@@ -976,7 +977,7 @@
         if (parts[0] === 'quiz') {
             state.currentTab = 'quiz';
             state.currentMood = null;
-            state.showImage = false;
+            state.detailStoryExpanded = false;
 
             if (parts.length === 1) {
                 renderQuizIntro();
@@ -1000,7 +1001,7 @@
         if (parts[0] === 'discover') {
             state.currentTab = 'discover';
             state.currentMood = null;
-            state.showImage = false;
+            state.detailStoryExpanded = false;
 
             if (parts.length === 1) {
                 renderDiscoverList();
@@ -1029,14 +1030,14 @@
         if (parts.length === 1 && MOOD_TABS.includes(parts[0])) {
             state.currentTab = parts[0];
             state.currentMood = null;
-            state.showImage = false;
+            state.detailStoryExpanded = false;
             renderList();
             return;
         }
 
         if (parts.length === 1 && parts[0] === 'settings') {
             state.currentMood = null;
-            state.showImage = false;
+            state.detailStoryExpanded = false;
             renderSettings();
             return;
         }
@@ -1048,7 +1049,7 @@
                 const mood = state.data?.[tab]?.find(m => m.key === key);
                 if (mood) {
                     state.currentMood = mood;
-                    state.showImage = true;
+                    state.detailStoryExpanded = false;
                     renderDetail();
                 } else {
                     navigateTo(`#/${tab}`);
@@ -2457,6 +2458,7 @@
         elements.quizBtn.classList.add('hidden');
         elements.settingsBtn.classList.add('hidden');
         elements.tabBar.classList.add('hidden');
+        elements.mainContent.classList.add('detail-main');
         elements.headerTitle.textContent = state.currentMood.title;
 
         // Reset scroll to top
@@ -2465,46 +2467,52 @@
 
         const imageUrl = getMoodImageUrl(state.currentMood);
         const displayContent = escapeHtml(formatMoodContent(state.currentMood.content));
+        const storyExpanded = state.detailStoryExpanded;
 
-        if (state.showImage) {
-            elements.mainContent.innerHTML = `
-                <div class="detail-view">
-                    <div class="detail-content">
-                        <button type="button" class="detail-image-wrapper detail-image-button" aria-label="이야기 보기">
-                            <img class="detail-image"
-                                 src="${imageUrl}"
-                                 alt="${escapeHtml(state.currentMood.title)}">
+        elements.mainContent.innerHTML = `
+            <div class="detail-view">
+                <div class="detail-content detail-stage">
+                    <div class="detail-image-wrapper">
+                        <img class="detail-image"
+                             src="${imageUrl}"
+                             alt="${escapeHtml(state.currentMood.title)}">
+                    </div>
+                    <section class="detail-story-sheet ${storyExpanded ? 'expanded' : ''}"
+                             aria-label="${escapeHtml(state.currentMood.title)} 이야기">
+                        <div class="detail-story-scroll">
+                            <p class="detail-story">${displayContent}</p>
+                        </div>
+                        <div class="detail-more-hint" aria-hidden="true">⌄</div>
+                        <button class="detail-toggle-btn ${state.currentTab}"
+                                type="button"
+                                aria-expanded="${storyExpanded ? 'true' : 'false'}">
+                            ${storyExpanded ? '이야기 접기' : '이야기 더 보기'}
                         </button>
-                    </div>
-                    <button class="detail-toggle-btn ${state.currentTab}"
-                            aria-label="이야기 보기">
-                        이야기 보기
-                    </button>
+                    </section>
                 </div>
-            `;
-        } else {
-            elements.mainContent.innerHTML = `
-                <div class="detail-view">
-                    <div class="detail-content">
-                        <p class="detail-story">${displayContent}</p>
-                    </div>
-                    <button class="detail-toggle-btn ${state.currentTab}"
-                            aria-label="이미지 보기">
-                        이미지 보기
-                    </button>
-                </div>
-            `;
-        }
+            </div>
+        `;
 
-        // Toggle button event
+        // Toggle story sheet event
         const toggleBtn = elements.mainContent.querySelector('.detail-toggle-btn');
-        const imageBtn = elements.mainContent.querySelector('.detail-image-button');
-        const toggleDetailMode = () => {
-            state.showImage = !state.showImage;
+        const storySheet = elements.mainContent.querySelector('.detail-story-sheet');
+        const storyScroll = elements.mainContent.querySelector('.detail-story-scroll');
+        const updateStoryMoreHint = () => {
+            if (!storySheet || !storyScroll) {
+                return;
+            }
+
+            const hasOverflow = storyScroll.scrollHeight > storyScroll.clientHeight + 1;
+            const isAtEnd = storyScroll.scrollTop + storyScroll.clientHeight >= storyScroll.scrollHeight - 2;
+            storySheet.classList.toggle('has-more', hasOverflow && !isAtEnd);
+        };
+        const toggleDetailStory = () => {
+            state.detailStoryExpanded = !state.detailStoryExpanded;
             renderDetail();
         };
-        toggleBtn.addEventListener('click', toggleDetailMode);
-        imageBtn?.addEventListener('click', toggleDetailMode);
+        toggleBtn.addEventListener('click', toggleDetailStory);
+        storyScroll?.addEventListener('scroll', updateStoryMoreHint, { passive: true });
+        requestAnimationFrame(updateStoryMoreHint);
     }
 
     // Register Service Worker

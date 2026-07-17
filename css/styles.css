@@ -168,6 +168,17 @@ body {
     overflow-y: auto;
 }
 
+#main-content.detail-main {
+    height: calc(100vh - var(--header-height));
+    margin-bottom: 0;
+    overflow: hidden;
+}
+
+#main-content.detail-main .detail-content {
+    height: 100%;
+    padding: 0;
+}
+
 /* Tab Bar */
 #tab-bar {
     position: fixed;
@@ -470,59 +481,112 @@ body {
 .detail-content {
     flex: 1;
     padding: 16px 0;
-    padding-bottom: calc(80px + var(--safe-area-inset-bottom)); /* Space for fixed button */
+}
+
+.detail-stage {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    min-height: 100%;
 }
 
 .detail-story {
-    font-size: 1.125rem;
-    line-height: 1.8;
+    margin: 0;
+    font-size: 1rem;
+    line-height: 1.65;
     white-space: pre-line;
 }
 
+.detail-story-scroll {
+    min-height: 0;
+    overflow: hidden;
+}
+
+.detail-more-hint {
+    display: none;
+    height: 16px;
+    margin-bottom: 8px;
+    color: var(--color-text-secondary);
+    font-size: 1.2rem;
+    font-weight: 700;
+    line-height: 16px;
+    text-align: center;
+}
+
 .detail-image-wrapper {
+    flex: 1 1 auto;
+    min-height: 100%;
     width: 100%;
     display: flex;
     justify-content: center;
-    align-items: center;
-}
-
-.detail-image-button {
-    border: 0;
-    padding: 0;
-    background: transparent;
-    cursor: pointer;
-}
-
-.detail-image-button:focus-visible {
-    outline: 3px solid #1266a8;
-    outline-offset: 4px;
-    border-radius: 12px;
+    align-items: flex-start;
 }
 
 .detail-image {
     max-width: 100%;
-    max-height: calc(100vh - var(--header-height) - 100px);
+    max-height: calc(100vh - var(--header-height) - 32px);
     object-fit: contain;
     border-radius: 12px;
     box-shadow: var(--shadow-card);
 }
 
+.detail-story-sheet {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: calc(8px + var(--safe-area-inset-bottom));
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    max-height: 180px;
+    overflow: hidden;
+    padding: 14px 16px;
+    border: 1px solid var(--color-border);
+    border-radius: 16px 16px 12px 12px;
+    background: rgba(255, 255, 255, 0.96);
+    box-shadow: var(--shadow-card);
+    transition: max-height var(--transition-normal), padding var(--transition-normal);
+}
+
+.detail-story-sheet.has-more .detail-story-scroll {
+    -webkit-mask-image: linear-gradient(180deg, #000 70%, transparent 100%);
+    mask-image: linear-gradient(180deg, #000 70%, transparent 100%);
+}
+
+.detail-story-sheet.has-more .detail-more-hint {
+    display: block;
+}
+
+.detail-story-sheet.expanded {
+    max-height: min(52vh, 480px);
+}
+
+.detail-story-sheet.expanded .detail-story-scroll {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+}
+
+.detail-story-sheet:not(.expanded) .detail-story-scroll {
+    max-height: 4.35em;
+    overflow: hidden;
+}
+
 .detail-toggle-btn {
-    position: fixed;
-    bottom: calc(16px + var(--safe-area-inset-bottom));
-    left: 50%;
-    transform: translateX(-50%);
-    width: calc(100% - 32px);
-    max-width: 300px;
-    padding: 14px 24px;
+    align-self: center;
+    flex: 0 0 auto;
+    min-width: 140px;
+    min-height: 44px;
+    padding: 10px 18px;
     font-size: 1rem;
     font-weight: 500;
     border: none;
-    border-radius: 25px;
+    border-radius: 999px;
     cursor: pointer;
     transition: all var(--transition-fast);
-    z-index: 90;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.12);
 }
 
 .detail-toggle-btn.yellow {
@@ -550,6 +614,7 @@ body {
 }
 
 .detail-toggle-btn:active {
+    transform: translateY(1px);
     opacity: 0.8;
 }
 
@@ -2006,6 +2071,17 @@ body {
     .quiz-options {
         grid-template-columns: 1fr;
     }
+
+    .detail-story-sheet {
+        max-height: 164px;
+        padding: 12px 14px;
+    }
+
+    .detail-toggle-btn {
+        padding-left: 12px;
+        padding-right: 12px;
+        font-size: 0.875rem;
+    }
 }
 
 @media (min-width: 480px) {
@@ -2043,6 +2119,19 @@ body {
 
     .detail-story {
         font-size: 1.25rem;
+    }
+
+    .detail-stage {
+        min-height: 100%;
+    }
+
+    .detail-image-wrapper {
+        min-height: 100%;
+    }
+
+    .detail-story-sheet {
+        max-height: 208px;
+        padding: 18px 20px;
     }
 
     .discover-save-bar {
