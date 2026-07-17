@@ -22,8 +22,6 @@
         girl: '여자아이',
         boy: '남자아이'
     };
-    const CONSTELLATION_SPREAD_RADIUS = 38;
-    const CONSTELLATION_SPREAD_MAX_SHIFT = 20;
     const TAB_LABELS = {
         yellow: '노랑',
         green: '초록',
@@ -1403,13 +1401,22 @@
     function renderMoodInfoPanel(mood, selected) {
         return `
             <div class="mood-info-backdrop" id="mood-info-backdrop">
-                <section class="mood-info-panel" aria-label="${escapeHtml(mood.title)} 이야기">
+                <section class="mood-info-panel ${mood.tab}" aria-label="${escapeHtml(mood.title)} 이야기">
                     <div class="mood-info-panel-header">
-                        <h2>${escapeHtml(getMoodDisplayTitle(mood.title))}</h2>
+                        <div class="mood-info-heading">
+                            <span class="mood-info-label">감정 이야기</span>
+                            <h2>${escapeHtml(getMoodDisplayTitle(mood.title))}</h2>
+                        </div>
                         <button type="button" class="mood-info-close" id="mood-info-close" aria-label="닫기">×</button>
                     </div>
-                    <p class="mood-info-description">${escapeHtml(mood.description)}</p>
-                    <p>${escapeHtml(formatMoodContent(mood.content))}</p>
+                    <div class="mood-info-summary">
+                        <span class="mood-info-summary-label">한 줄 느낌</span>
+                        <p>${escapeHtml(mood.description)}</p>
+                    </div>
+                    <article class="mood-info-story" aria-label="감정 이야기 본문">
+                        <span class="mood-info-story-label">이야기</span>
+                        <p>${escapeHtml(formatMoodContent(mood.content))}</p>
+                    </article>
                     <button
                         type="button"
                         class="mood-info-select-btn ${mood.tab} ${selected ? 'selected' : ''}"
@@ -1564,13 +1571,13 @@
         };
 
         elements.mainContent.innerHTML = `
-            <div class="discover-view constellation-view">
-                <div class="constellation-actions">
+            <div class="discover-view discovery-reflection-view">
+                <div class="discovery-reflection-actions">
                     <button type="button" class="discover-secondary-btn" id="discover-edit-btn">감정 다시 고르기</button>
                     <button type="button" class="discover-danger-btn" id="discover-delete-btn">삭제</button>
                 </div>
-                ${renderEmotionConstellation(hydratedDiscovery)}
-                <div class="constellation-meta">
+                ${renderDiscoveryReflection(hydratedDiscovery)}
+                <div class="discovery-reflection-meta">
                     <time datetime="${escapeHtml(discovery.createdAt)}">${formatDate(discovery.createdAt)}</time>
                     <p>${hydratedDiscovery.moods.length}개의 마음을 알아봤어요.</p>
                 </div>
@@ -1590,7 +1597,6 @@
                 elements.mainContent.insertAdjacentHTML('afterbegin', '<p class="discover-status is-error">삭제하지 못했어요. 잠시 뒤 다시 시도해 주세요.</p>');
             }
         });
-        setupConstellationSpread();
     }
 
     function prepareQuizShell(title, showBack = false, showTabBar = false) {
@@ -1861,115 +1867,27 @@
         `;
     }
 
-    function renderEmotionConstellation(discovery) {
-        const centerX = 50;
-        const centerY = 50;
-        const count = Math.max(discovery.moods.length, 1);
-        const positions = discovery.moods.map((mood, index) => {
-            const angle = ((Math.PI * 2) / count) * index - Math.PI / 2;
-            const ring = index % 2 === 0 ? 34 : 39;
-            const x = centerX + Math.cos(angle) * ring;
-            const y = centerY + Math.sin(angle) * Math.min(ring, 30);
-
-            return {
-                mood,
-                x: Math.max(9, Math.min(91, x)),
-                y: Math.max(12, Math.min(88, y)),
-                delay: (index % 5) * 0.15
-            };
-        });
-
+    function renderDiscoveryReflection(discovery) {
         return `
-            <div class="constellation-stage floating-chip-field" id="constellation-stage" aria-label="알아본 감정 결과">
-                <div class="constellation-decor top-left" aria-hidden="true">반짝</div>
-                <div class="constellation-decor bottom-right" aria-hidden="true">마음 알아가기</div>
-                <svg class="constellation-lines" viewBox="0 0 100 100" aria-hidden="true" preserveAspectRatio="none">
-                    ${positions.map((position, index) => `
-                        <line data-line-index="${index}" x1="${centerX}" y1="${centerY}" x2="${position.x}" y2="${position.y}"></line>
-                    `).join('')}
-                </svg>
-                <div class="constellation-center">
-                    <span>${escapeHtml(discovery.target)}</span>
+            <section class="discovery-reflection" aria-label="알아가기 기록">
+                <div class="discovery-reflection-hero">
+                    <span class="discovery-reflection-kicker">마음에 남은 일</span>
+                    <h2>${escapeHtml(discovery.target)}</h2>
+                    <p>이 일에서 느낀 마음들을 차분히 모아봤어요.</p>
                 </div>
-                ${positions.map((position, index) => `
-                    <div class="constellation-bubble floating-chip ${position.mood.tab}"
-                         data-bubble-index="${index}"
-                         data-base-x="${position.x}"
-                         data-base-y="${position.y}"
-                         style="left: ${position.x}%; top: ${position.y}%; animation-delay: ${position.delay}s;">
-                        ${escapeHtml(getMoodDisplayTitle(position.mood.title))}
-                    </div>
-                `).join('')}
-            </div>
+                <div class="discovery-reflection-mood-list" aria-label="느낀 마음">
+                    ${discovery.moods.map(mood => `
+                        <article class="discovery-reflection-mood ${mood.tab}">
+                            <div class="discovery-reflection-mood-main">
+                                <span class="discovery-reflection-mood-dot" aria-hidden="true"></span>
+                                <h3>${escapeHtml(getMoodDisplayTitle(mood.title))}</h3>
+                            </div>
+                            <p>${escapeHtml(mood.description)}</p>
+                        </article>
+                    `).join('')}
+                </div>
+            </section>
         `;
-    }
-
-    function setupConstellationSpread() {
-        const stage = document.getElementById('constellation-stage');
-        if (!stage) return;
-
-        const bubbles = Array.from(stage.querySelectorAll('.constellation-bubble'));
-        const lines = Array.from(stage.querySelectorAll('.constellation-lines line'));
-        if (!bubbles.length) return;
-
-        const basePositions = bubbles.map((bubble, index) => ({
-            bubble,
-            line: lines[index] || null,
-            x: Number.parseFloat(bubble.dataset.baseX),
-            y: Number.parseFloat(bubble.dataset.baseY)
-        }));
-
-        const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
-
-        function moveBubble(position, x, y, expanded) {
-            position.bubble.style.left = `${x}%`;
-            position.bubble.style.top = `${y}%`;
-            position.bubble.classList.toggle('is-spread', expanded);
-            if (position.line) {
-                position.line.setAttribute('x2', x.toFixed(2));
-                position.line.setAttribute('y2', y.toFixed(2));
-            }
-        }
-
-        function spreadFromPoint(clientX, clientY) {
-            const rect = stage.getBoundingClientRect();
-            if (!rect.width || !rect.height) return;
-
-            const touchX = ((clientX - rect.left) / rect.width) * 100;
-            const touchY = ((clientY - rect.top) / rect.height) * 100;
-            const maxShift = rect.width < 430
-                ? CONSTELLATION_SPREAD_MAX_SHIFT + 4
-                : CONSTELLATION_SPREAD_MAX_SHIFT;
-            const radius = basePositions.length > 12
-                ? CONSTELLATION_SPREAD_RADIUS + 8
-                : CONSTELLATION_SPREAD_RADIUS;
-
-            basePositions.forEach((position, index) => {
-                const dx = position.x - touchX;
-                const dy = position.y - touchY;
-                const distance = Math.hypot(dx, dy);
-
-                if (distance > radius) {
-                    moveBubble(position, position.x, position.y, false);
-                    return;
-                }
-
-                const fallbackAngle = ((Math.PI * 2) / basePositions.length) * index - Math.PI / 2;
-                const directionX = distance > 0.1 ? dx / distance : Math.cos(fallbackAngle);
-                const directionY = distance > 0.1 ? dy / distance : Math.sin(fallbackAngle);
-                const spreadRatio = Math.pow(1 - (distance / radius), 0.75);
-                const tangent = index % 2 === 0 ? 1 : -1;
-                const shift = maxShift * spreadRatio;
-                const nextX = clamp(position.x + (directionX * shift) + (-directionY * tangent * shift * 0.24), 8, 92);
-                const nextY = clamp(position.y + (directionY * shift) + (directionX * tangent * shift * 0.18), 10, 90);
-
-                moveBubble(position, nextX, nextY, true);
-            });
-        }
-
-        stage.addEventListener('pointerdown', event => {
-            spreadFromPoint(event.clientX, event.clientY);
-        });
     }
 
     function renderSettings() {

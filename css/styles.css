@@ -1243,6 +1243,7 @@ body {
 }
 
 .selectable-mood-card {
+    --selectable-mood-border: transparent;
     position: relative;
     min-width: 0;
     border: 2px solid transparent;
@@ -1252,25 +1253,29 @@ body {
 }
 
 .selectable-mood-card.selected {
-    border-color: currentColor;
+    border-color: var(--selectable-mood-border);
 }
 
 .selectable-mood-card.yellow {
+    --selectable-mood-border: #f5c400;
     background-color: var(--color-yellow-light);
     color: #8a6100;
 }
 
 .selectable-mood-card.green {
+    --selectable-mood-border: var(--color-green);
     background-color: var(--color-green-light);
     color: #1f7a33;
 }
 
 .selectable-mood-card.blue {
+    --selectable-mood-border: var(--color-blue);
     background-color: var(--color-blue-light);
     color: #1266a8;
 }
 
 .selectable-mood-card.red {
+    --selectable-mood-border: var(--color-red);
     background-color: var(--color-red-light);
     color: #b42318;
 }
@@ -1345,17 +1350,52 @@ body {
 }
 
 .mood-info-panel {
+    --mood-info-accent: #ffd54f;
+    --mood-info-accent-soft: #fff8dc;
+    --mood-info-border: #f2dd8a;
+    --mood-info-accent-text: #7a5700;
     position: absolute;
     left: 50%;
     bottom: 0;
     transform: translateX(-50%);
     width: min(calc(100% - 24px), calc(var(--max-width) - 24px));
-    max-height: min(58vh, 460px);
+    max-height: min(66vh, 520px);
     overflow-y: auto;
-    background-color: #fff;
-    border-radius: 16px 16px 0 0;
+    background:
+        linear-gradient(180deg, var(--mood-info-accent-soft) 0, #fff 132px),
+        #fff;
+    border-top: 5px solid var(--mood-info-accent);
+    border-radius: 18px 18px 0 0;
     box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.18);
-    padding: 0 16px 16px;
+    padding: 0 18px 18px;
+}
+
+.mood-info-panel.yellow {
+    --mood-info-accent: var(--color-yellow);
+    --mood-info-accent-soft: #fff9df;
+    --mood-info-border: #f2dd8a;
+    --mood-info-accent-text: #7a5700;
+}
+
+.mood-info-panel.green {
+    --mood-info-accent: var(--color-green);
+    --mood-info-accent-soft: #edf8ee;
+    --mood-info-border: #bde6c1;
+    --mood-info-accent-text: #17612a;
+}
+
+.mood-info-panel.blue {
+    --mood-info-accent: var(--color-blue);
+    --mood-info-accent-soft: #edf7ff;
+    --mood-info-border: #b8dcf7;
+    --mood-info-accent-text: #125a91;
+}
+
+.mood-info-panel.red {
+    --mood-info-accent: var(--color-red);
+    --mood-info-accent-soft: #fff0f0;
+    --mood-info-border: #f5c1be;
+    --mood-info-accent-text: #9a2921;
 }
 
 .mood-info-panel-header {
@@ -1365,30 +1405,82 @@ body {
     display: flex;
     justify-content: space-between;
     gap: 12px;
-    align-items: center;
-    margin: 0 -16px 12px;
-    padding: 16px;
-    background-color: #fff;
-    border-radius: 16px 16px 0 0;
-    box-shadow: 0 8px 14px rgba(255, 255, 255, 0.92);
+    align-items: flex-start;
+    margin: 0 -18px 16px;
+    padding: 18px 18px 14px;
+    background-color: rgba(255, 255, 255, 0.94);
+    border-radius: 13px 13px 0 0;
+    box-shadow: 0 10px 18px rgba(255, 255, 255, 0.94);
+    backdrop-filter: blur(8px);
+}
+
+.mood-info-heading {
+    min-width: 0;
+    display: grid;
+    gap: 4px;
+}
+
+.mood-info-label,
+.mood-info-summary-label,
+.mood-info-story-label {
+    width: max-content;
+    border-radius: 999px;
+    background-color: var(--mood-info-accent-soft);
+    color: var(--mood-info-accent-text);
+    font-size: 0.75rem;
+    font-weight: 800;
+    line-height: 1;
 }
 
 .mood-info-panel h2 {
-    font-size: 1rem;
+    color: var(--color-text);
+    font-size: 1.35rem;
+    line-height: 1.2;
+    overflow-wrap: anywhere;
 }
 
-.mood-info-description {
-    margin-bottom: 12px;
-    padding: 10px 12px;
-    border-radius: 10px;
-    background-color: #f7f7f7;
-    color: var(--color-text-secondary);
-    font-size: 0.9375rem;
+.mood-info-label {
+    padding: 6px 9px;
 }
 
-.mood-info-panel p {
+.mood-info-summary {
+    display: grid;
+    gap: 8px;
+    margin-bottom: 14px;
+    padding: 14px;
+    border: 1px solid var(--mood-info-border);
+    border-radius: 8px;
+    background-color: rgba(255, 255, 255, 0.86);
+}
+
+.mood-info-summary-label,
+.mood-info-story-label {
+    padding: 5px 8px;
+}
+
+.mood-info-summary p {
+    color: var(--color-text);
+    font-size: 0.975rem;
+    font-weight: 700;
+    line-height: 1.55;
+    overflow-wrap: anywhere;
+}
+
+.mood-info-story {
+    display: grid;
+    gap: 10px;
+    padding: 14px;
+    border-radius: 8px;
+    background-color: #fff;
+    box-shadow: inset 0 0 0 1px rgba(74, 74, 74, 0.08);
+}
+
+.mood-info-story p {
+    color: #3f3f3f;
+    font-size: 0.975rem;
     line-height: 1.75;
     white-space: pre-line;
+    overflow-wrap: anywhere;
 }
 
 .mood-info-select-btn {
@@ -1396,9 +1488,9 @@ body {
     bottom: 0;
     width: 100%;
     min-height: 44px;
-    margin-top: 16px;
+    margin-top: 18px;
     border: none;
-    border-radius: 10px;
+    border-radius: 8px;
     font-size: 1rem;
     font-weight: 700;
     color: #333;
@@ -1458,161 +1550,132 @@ body {
     font-weight: 700;
 }
 
-.constellation-view {
-    gap: 18px;
+.discovery-reflection-view {
+    gap: 16px;
 }
 
-.constellation-stage {
-    position: relative;
-    height: min(72vh, 560px);
-    min-height: 420px;
-    overflow: hidden;
-    cursor: pointer;
-    touch-action: manipulation;
+.discovery-reflection {
+    display: grid;
+    gap: 14px;
+}
+
+.discovery-reflection-hero {
+    padding: 22px 18px;
+    border-left: 5px solid #d7dce2;
+    border-radius: 8px;
     background:
-        linear-gradient(90deg, rgba(255, 215, 0, 0.08) 1px, transparent 1px),
-        linear-gradient(rgba(33, 150, 243, 0.07) 1px, transparent 1px),
-        linear-gradient(180deg, #fffdf3 0%, #eef8ff 52%, #fff4f6 100%);
-    background-size: 28px 28px, 28px 28px, auto;
-    border: 2px solid rgba(255, 215, 0, 0.55);
-    border-radius: 18px;
-    box-shadow: 0 10px 24px rgba(33, 150, 243, 0.14);
-}
-
-.floating-chip-field {
-    isolation: isolate;
-}
-
-.constellation-decor {
-    position: absolute;
-    z-index: 1;
-    border: 2px solid rgba(74, 74, 74, 0.08);
-    border-radius: 999px;
-    padding: 6px 10px;
-    background-color: rgba(255, 255, 255, 0.74);
-    color: rgba(74, 74, 74, 0.55);
-    font-size: 0.8125rem;
-    font-weight: 800;
-}
-
-.constellation-decor.top-left {
-    top: 16px;
-    left: 16px;
-    transform: rotate(-7deg);
-}
-
-.constellation-decor.bottom-right {
-    right: 16px;
-    bottom: 16px;
-    transform: rotate(6deg);
-}
-
-.constellation-lines {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-}
-
-.constellation-lines line {
-    stroke: rgba(74, 74, 74, 0.24);
-    stroke-width: 0.45;
-    stroke-dasharray: 2 1.5;
-    transition: x2 260ms ease, y2 260ms ease;
-}
-
-.constellation-center,
-.constellation-bubble {
-    position: absolute;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    text-align: center;
-    transform: translate(-50%, -50%);
+        linear-gradient(180deg, rgba(248, 249, 251, 0.98), rgba(255, 255, 255, 0.98)),
+        #fff;
     box-shadow: var(--shadow-card);
 }
 
-.constellation-center {
-    left: 50%;
-    top: 50%;
-    width: clamp(128px, 38vw, 190px);
-    min-height: 92px;
-    padding: 16px;
-    border: 3px solid #ffd54f;
-    border-radius: 22px;
-    background-color: rgba(255, 255, 255, 0.96);
-    font-size: 1rem;
+.discovery-reflection-kicker {
+    display: inline-flex;
+    width: max-content;
+    margin-bottom: 10px;
+    padding: 5px 8px;
+    border-radius: 999px;
+    background-color: #eef1f5;
+    color: #555f6d;
+    font-size: 0.75rem;
     font-weight: 800;
-    overflow-wrap: anywhere;
-    z-index: 2;
-    color: #333;
-    transform: translate(-50%, -50%) rotate(-1deg);
 }
 
-.constellation-bubble {
-    min-width: 82px;
-    max-width: 124px;
-    min-height: 54px;
-    padding: 10px 12px;
-    border-radius: 18px 22px 20px 24px;
-    font-size: 0.875rem;
-    font-weight: 700;
+.discovery-reflection-hero h2 {
+    color: var(--color-text);
+    font-size: 1.45rem;
     line-height: 1.25;
-    animation: floatBubble 4.8s ease-in-out infinite;
-    z-index: 2;
-    transition: left 260ms ease, top 260ms ease, box-shadow 260ms ease;
-    will-change: left, top;
+    overflow-wrap: anywhere;
 }
 
-.floating-chip {
-    will-change: transform;
+.discovery-reflection-hero p {
+    margin-top: 10px;
+    color: var(--color-text-secondary);
+    font-size: 0.95rem;
 }
 
-.constellation-bubble.is-spread {
-    z-index: 4;
-    box-shadow: 0 12px 28px rgba(74, 74, 74, 0.18);
+.discovery-reflection-mood-list {
+    display: grid;
+    gap: 10px;
 }
 
-.constellation-bubble.yellow {
-    background-color: #ffe66d;
-    border: 2px solid #f5c400;
-    color: #8a6100;
+.discovery-reflection-mood {
+    --reflection-mood-accent: #f5c400;
+    --reflection-mood-bg: #fff9df;
+    --reflection-mood-text: #8a6100;
+    display: grid;
+    gap: 8px;
+    padding: 14px;
+    border: 1px solid rgba(74, 74, 74, 0.08);
+    border-left: 5px solid var(--reflection-mood-accent);
+    border-radius: 8px;
+    background-color: var(--reflection-mood-bg);
+    box-shadow: 0 2px 8px rgba(74, 74, 74, 0.06);
 }
 
-.constellation-bubble.green {
-    background-color: #8ee89f;
-    border: 2px solid var(--color-green);
-    color: #145b25;
+.discovery-reflection-mood.yellow {
+    --reflection-mood-accent: #f5c400;
+    --reflection-mood-bg: #fff9df;
+    --reflection-mood-text: #8a6100;
 }
 
-.constellation-bubble.blue {
-    background-color: #9bd3ff;
-    border: 2px solid var(--color-blue);
-    color: #0d568f;
+.discovery-reflection-mood.green {
+    --reflection-mood-accent: var(--color-green);
+    --reflection-mood-bg: #edf8ee;
+    --reflection-mood-text: #17612a;
 }
 
-.constellation-bubble.red {
-    background-color: #ff9fa0;
-    border: 2px solid var(--color-red);
-    color: #912019;
+.discovery-reflection-mood.blue {
+    --reflection-mood-accent: var(--color-blue);
+    --reflection-mood-bg: #edf7ff;
+    --reflection-mood-text: #125a91;
 }
 
-.constellation-meta {
+.discovery-reflection-mood.red {
+    --reflection-mood-accent: var(--color-red);
+    --reflection-mood-bg: #fff0f0;
+    --reflection-mood-text: #9a2921;
+}
+
+.discovery-reflection-mood-main {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.discovery-reflection-mood-dot {
+    flex: 0 0 auto;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background-color: var(--reflection-mood-accent);
+}
+
+.discovery-reflection-mood h3 {
+    color: var(--reflection-mood-text);
+    font-size: 1rem;
+    line-height: 1.25;
+    overflow-wrap: anywhere;
+}
+
+.discovery-reflection-mood p {
+    color: #4a4a4a;
+    font-size: 0.925rem;
+    line-height: 1.55;
+    overflow-wrap: anywhere;
+}
+
+.discovery-reflection-meta {
     color: var(--color-text-secondary);
     font-size: 0.9375rem;
     text-align: center;
 }
 
-.constellation-actions {
+.discovery-reflection-actions {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 8px;
-}
-
-@keyframes floatBubble {
-    0%, 100% { transform: translate(-50%, -50%) translate(0, 0) rotate(-0.7deg); }
-    45% { transform: translate(-50%, -50%) translate(2px, -3px) rotate(0.7deg); }
-    70% { transform: translate(-50%, -50%) translate(-1px, 2px) rotate(0.2deg); }
 }
 
 /* Quiz View */
@@ -2088,9 +2151,7 @@ body {
         transition-duration: 0.01ms !important;
     }
 
-    .chip-river__track,
-    .constellation-bubble,
-    .floating-chip {
+    .chip-river__track {
         animation: none !important;
     }
 
