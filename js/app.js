@@ -6,6 +6,7 @@
     const USER_NAME_MAX_LENGTH = 20;
     const CURRENT_SCHEMA_VERSION = 2;
     const STORAGE_KEY_USER_NAME = 'moodmeter:userName';
+    const STORAGE_KEY_CHILD_GENDER = 'moodmeter:childGender';
     const STORAGE_KEY_DISCOVERIES = 'moodmeter:discoveries';
     const STORAGE_KEY_QUIZ_STATS = 'moodmeter:quizStats';
     const STORAGE_KEY_SCHEMA_VERSION = 'moodmeter:schemaVersion';
@@ -15,6 +16,12 @@
     const CHIP_RIVER_PIXELS_PER_SECOND = 15;
     const MOOD_TABS = ['yellow', 'green', 'blue', 'red'];
     const NAV_TABS = ['discover', ...MOOD_TABS];
+    const CHILD_GENDERS = ['girl', 'boy'];
+    const DEFAULT_CHILD_GENDER = 'girl';
+    const CHILD_GENDER_LABELS = {
+        girl: '여자아이',
+        boy: '남자아이'
+    };
     const CONSTELLATION_SPREAD_RADIUS = 38;
     const CONSTELLATION_SPREAD_MAX_SHIFT = 20;
     const TAB_LABELS = {
@@ -49,6 +56,7 @@
         loading: true,
         error: null,
         userName: DEFAULT_USER_NAME,
+        childGender: DEFAULT_CHILD_GENDER,
         discoveries: [],
         quizStats: {},
         cloud: {
@@ -88,6 +96,7 @@
     async function init() {
         migrateLocalStorageIfNeeded();
         loadUserName();
+        loadChildGender();
         state.discoveries = loadDiscoveries();
         state.quizStats = loadQuizStats();
         await loadData();
@@ -123,6 +132,36 @@
     function normalizeUserName(value) {
         if (typeof value !== 'string') return '';
         return value.trim().replace(/\s+/g, ' ');
+    }
+
+    function normalizeChildGender(value) {
+        return CHILD_GENDERS.includes(value) ? value : DEFAULT_CHILD_GENDER;
+    }
+
+    function loadChildGender() {
+        try {
+            state.childGender = normalizeChildGender(localStorage.getItem(STORAGE_KEY_CHILD_GENDER));
+        } catch (error) {
+            console.warn('Failed to load child gender from localStorage:', error);
+            state.childGender = DEFAULT_CHILD_GENDER;
+        }
+    }
+
+    function saveChildGender(gender) {
+        try {
+            localStorage.setItem(STORAGE_KEY_CHILD_GENDER, normalizeChildGender(gender));
+            syncUserProfileToCloud();
+            trackCloudEvent('child_gender_saved');
+            return true;
+        } catch (error) {
+            console.warn('Failed to save child gender to localStorage:', error);
+            return false;
+        }
+    }
+
+    function getMoodImageUrl(mood) {
+        const key = typeof mood === 'string' ? mood : mood?.key;
+        return `images/${state.childGender}/${encodeURIComponent(key)}.jpg`;
     }
 
     function prefersReducedMotion() {
@@ -261,6 +300,7 @@
             const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
             localStorage.setItem(`moodmeter:backup:v1:${timestamp}`, JSON.stringify({
                 userName: localStorage.getItem(STORAGE_KEY_USER_NAME),
+                childGender: localStorage.getItem(STORAGE_KEY_CHILD_GENDER),
                 discoveries: localStorage.getItem(STORAGE_KEY_DISCOVERIES),
                 quizStats: localStorage.getItem(STORAGE_KEY_QUIZ_STATS),
                 backedUpAt: new Date().toISOString()
@@ -815,6 +855,7 @@
             .then(result => {
                 if (result?.ok) {
                     loadUserName();
+                    loadChildGender();
                     state.discoveries = loadDiscoveries();
                     state.quizStats = loadQuizStats();
                     state.cloud.status = '기록이 안전하게 보관되고 있어요.';
@@ -1007,7 +1048,7 @@
                 const mood = state.data?.[tab]?.find(m => m.key === key);
                 if (mood) {
                     state.currentMood = mood;
-                    state.showImage = false;
+                    state.showImage = true;
                     renderDetail();
                 } else {
                     navigateTo(`#/${tab}`);
@@ -1612,7 +1653,7 @@
         }
 
         const questionNumber = session.currentIndex + 1;
-        const imageUrl = `images/${encodeURIComponent(question.mood.key)}.jpg`;
+        const imageUrl = getMoodImageUrl(question.mood);
         const questionPrompt = getQuizQuestionPrompt(question.mood);
 
         elements.mainContent.innerHTML = `
@@ -1802,7 +1843,7 @@
     }
 
     function renderQuizReviewCard(mood, expanded) {
-        const imageUrl = `images/${encodeURIComponent(mood.key)}.jpg`;
+        const imageUrl = getMoodImageUrl(mood);
 
         return `
             <article class="quiz-review-card ${mood.tab}">
@@ -1945,8 +1986,8 @@
 
         elements.mainContent.innerHTML = `
             <div class="settings-view">
-                <h2 class="settings-title">사용자 이름 설정</h2>
-                <p class="settings-description">상세 이야기에서 사용할 이름을 입력해 주세요.</p>
+                <h2 class="settings-title">사용자 설정</h2>
+                <p class="settings-description">상세 이야기에서 사용할 이름과 사진 속 아이를 선택해 주세요.</p>
 
                 <form class="settings-form" id="settings-form">
                     <label for="name-input" class="settings-label">이름</label>
@@ -1960,6 +2001,22 @@
                         required
                     >
                     <p class="settings-hint">최대 ${USER_NAME_MAX_LENGTH}자까지 입력할 수 있어요.</p>
+                    <fieldset class="settings-fieldset">
+                        <legend class="settings-label">사진 속 아이</legend>
+                        <div class="gender-options" role="radiogroup" aria-label="사진 속 아이">
+                            ${CHILD_GENDERS.map(gender => `
+                                <label class="gender-option ${state.childGender === gender ? 'is-selected' : ''}">
+                                    <input
+                                        type="radio"
+                                        name="child-gender"
+                                        value="${gender}"
+                                        ${state.childGender === gender ? 'checked' : ''}
+                                    >
+                                    <span>${CHILD_GENDER_LABELS[gender]}</span>
+                                </label>
+                            `).join('')}
+                        </div>
+                    </fieldset>
                     <p id="settings-status" class="settings-status" aria-live="polite"></p>
 
                     <div class="settings-actions">
@@ -1969,6 +2026,7 @@
                 </form>
 
                 <p class="settings-preview">현재 적용 이름: <strong id="name-preview"></strong></p>
+                <p class="settings-preview">현재 사진: <strong id="gender-preview"></strong></p>
 
                 ${renderCloudSyncSection()}
             </div>
@@ -1979,19 +2037,29 @@
         const resetBtn = document.getElementById('name-reset-btn');
         const status = document.getElementById('settings-status');
         const preview = document.getElementById('name-preview');
+        const genderPreview = document.getElementById('gender-preview');
+        const genderInputs = Array.from(document.querySelectorAll('input[name="child-gender"]'));
 
         input.value = state.userName;
         preview.textContent = state.userName;
+        genderPreview.textContent = CHILD_GENDER_LABELS[state.childGender];
 
         function setStatus(message, isError = false) {
             status.textContent = message;
             status.classList.toggle('is-error', isError);
         }
 
+        function syncGenderOptionState() {
+            genderInputs.forEach(radio => {
+                radio.closest('.gender-option')?.classList.toggle('is-selected', radio.checked);
+            });
+        }
+
         form.addEventListener('submit', (event) => {
             event.preventDefault();
 
             const normalizedName = normalizeUserName(input.value);
+            const selectedGender = normalizeChildGender(form.elements['child-gender']?.value);
 
             if (!normalizedName) {
                 setStatus('이름을 입력해 주세요.', true);
@@ -2006,12 +2074,14 @@
             }
 
             state.userName = normalizedName;
+            state.childGender = selectedGender;
             input.value = normalizedName;
             preview.textContent = normalizedName;
+            genderPreview.textContent = CHILD_GENDER_LABELS[selectedGender];
 
-            const saved = saveUserName(normalizedName);
+            const saved = saveUserName(normalizedName) && saveChildGender(selectedGender);
             if (saved) {
-                setStatus('이름이 저장되었어요.');
+                setStatus('설정이 저장되었어요.');
             } else {
                 setStatus('저장에 실패했어요. 브라우저 설정을 확인해 주세요.', true);
             }
@@ -2019,15 +2089,29 @@
 
         resetBtn.addEventListener('click', () => {
             state.userName = DEFAULT_USER_NAME;
+            state.childGender = DEFAULT_CHILD_GENDER;
             input.value = DEFAULT_USER_NAME;
             preview.textContent = DEFAULT_USER_NAME;
+            genderPreview.textContent = CHILD_GENDER_LABELS[DEFAULT_CHILD_GENDER];
+            genderInputs.forEach(radio => {
+                radio.checked = radio.value === DEFAULT_CHILD_GENDER;
+            });
+            syncGenderOptionState();
 
-            const saved = saveUserName(DEFAULT_USER_NAME);
+            const saved = saveUserName(DEFAULT_USER_NAME) && saveChildGender(DEFAULT_CHILD_GENDER);
             if (saved) {
-                setStatus('기본 이름으로 초기화했어요.');
+                setStatus('기본 설정으로 초기화했어요.');
             } else {
                 setStatus('초기화 저장에 실패했어요. 브라우저 설정을 확인해 주세요.', true);
             }
+        });
+
+        genderInputs.forEach(radio => {
+            radio.addEventListener('change', () => {
+                state.childGender = normalizeChildGender(radio.value);
+                genderPreview.textContent = CHILD_GENDER_LABELS[state.childGender];
+                syncGenderOptionState();
+            });
         });
 
         bindCloudSyncSettings();
@@ -2144,6 +2228,7 @@
                     state.cloud.status = '기록이 안전하게 보관되고 있어요.';
                     state.cloud.error = '';
                     loadUserName();
+                    loadChildGender();
                     state.discoveries = loadDiscoveries();
                     state.quizStats = loadQuizStats();
                 } else {
@@ -2266,6 +2351,7 @@
                         : '비밀번호 재설정 메일을 보냈어요.';
                     state.cloud.error = '';
                     loadUserName();
+                    loadChildGender();
                     state.discoveries = loadDiscoveries();
                     state.quizStats = loadQuizStats();
                 } else {
@@ -2292,7 +2378,7 @@
 
     // Render a mood card
     function renderMoodCard(mood) {
-        const imageUrl = `images/${encodeURIComponent(mood.key)}.jpg`;
+        const imageUrl = getMoodImageUrl(mood);
         const discoveryTargets = getDiscoveryTargetsForMood(state.currentTab, mood.key);
         const discoveryChips = discoveryTargets.length ? `
                     ${renderMoodCardDiscoveryChips(discoveryTargets, mood)}
@@ -2377,18 +2463,18 @@
         window.scrollTo(0, 0);
         elements.mainContent.scrollTop = 0;
 
-        const imageUrl = `images/${encodeURIComponent(state.currentMood.key)}.jpg`;
+        const imageUrl = getMoodImageUrl(state.currentMood);
         const displayContent = escapeHtml(formatMoodContent(state.currentMood.content));
 
         if (state.showImage) {
             elements.mainContent.innerHTML = `
                 <div class="detail-view">
                     <div class="detail-content">
-                        <div class="detail-image-wrapper">
+                        <button type="button" class="detail-image-wrapper detail-image-button" aria-label="이야기 보기">
                             <img class="detail-image"
                                  src="${imageUrl}"
-                                 alt="${state.currentMood.title}">
-                        </div>
+                                 alt="${escapeHtml(state.currentMood.title)}">
+                        </button>
                     </div>
                     <button class="detail-toggle-btn ${state.currentTab}"
                             aria-label="이야기 보기">
@@ -2412,10 +2498,13 @@
 
         // Toggle button event
         const toggleBtn = elements.mainContent.querySelector('.detail-toggle-btn');
-        toggleBtn.addEventListener('click', () => {
+        const imageBtn = elements.mainContent.querySelector('.detail-image-button');
+        const toggleDetailMode = () => {
             state.showImage = !state.showImage;
             renderDetail();
-        });
+        };
+        toggleBtn.addEventListener('click', toggleDetailMode);
+        imageBtn?.addEventListener('click', toggleDetailMode);
     }
 
     // Register Service Worker

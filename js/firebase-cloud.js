@@ -43,6 +43,7 @@ const firebaseConfig = {
 };
 
 const STORAGE_KEY_USER_NAME = "moodmeter:userName";
+const STORAGE_KEY_CHILD_GENDER = "moodmeter:childGender";
 const STORAGE_KEY_DISCOVERIES = "moodmeter:discoveries";
 const STORAGE_KEY_QUIZ_STATS = "moodmeter:quizStats";
 const STORAGE_KEY_SYNC_META = "moodmeter:syncMeta";
@@ -474,6 +475,7 @@ async function saveUserProfile() {
 
     const profileRef = doc(db, "users", user.uid);
     const userName = localStorage.getItem(STORAGE_KEY_USER_NAME) || "봄이";
+    const childGender = localStorage.getItem(STORAGE_KEY_CHILD_GENDER) || "girl";
 
     try {
         const existingProfile = await getDoc(profileRef);
@@ -481,6 +483,7 @@ async function saveUserProfile() {
             displayName: user.displayName || "",
             email: user.email || "",
             userName,
+            childGender,
             createdAt: existingProfile.exists() ? existingProfile.data().createdAt : serverTimestamp(),
             updatedAt: serverTimestamp()
         }, { merge: true });
@@ -654,6 +657,10 @@ async function mergeCloudDataToLocal() {
         const localUserName = localStorage.getItem(STORAGE_KEY_USER_NAME) || "";
         if (!localUserName && profile?.userName) {
             localStorage.setItem(STORAGE_KEY_USER_NAME, profile.userName);
+        }
+        const localChildGender = localStorage.getItem(STORAGE_KEY_CHILD_GENDER) || "";
+        if (!localChildGender && profile?.childGender) {
+            localStorage.setItem(STORAGE_KEY_CHILD_GENDER, profile.childGender);
         }
 
         const cloudDiscoveries = await loadDiscoveries();
