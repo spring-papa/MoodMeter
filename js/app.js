@@ -2400,7 +2400,10 @@
                         <div class="detail-story-scroll">
                             <p class="detail-story">${displayContent}</p>
                         </div>
-                        <div class="detail-more-hint" aria-hidden="true">⌄</div>
+                        <div class="detail-more-hint"
+                             role="button"
+                             tabindex="0"
+                             aria-label="이야기 펼치기">⌄</div>
                     </section>
                 </div>
             </div>
@@ -2409,6 +2412,7 @@
         // Drag story sheet event
         const storySheet = elements.mainContent.querySelector('.detail-story-sheet');
         const storyScroll = elements.mainContent.querySelector('.detail-story-scroll');
+        const storyMoreHint = elements.mainContent.querySelector('.detail-more-hint');
         const updateStoryMoreHint = () => {
             if (!storySheet || !storyScroll) {
                 return;
@@ -2447,8 +2451,14 @@
 
             const deltaY = event.clientY - dragStartY;
             const canCollapse = !state.detailStoryExpanded || dragStartScrollTop <= 2;
+            const isHintTap = Math.abs(deltaY) < 8 && event.target.closest?.('.detail-more-hint');
             storySheet.classList.remove('dragging');
             dragStartY = null;
+
+            if (isHintTap) {
+                setDetailStoryExpanded(true);
+                return;
+            }
 
             if (deltaY < -dragThreshold) {
                 setDetailStoryExpanded(true);
@@ -2491,7 +2501,7 @@
                 event.preventDefault();
             }
         }, { passive: false });
-        storySheet?.addEventListener('touchend', () => {
+        storySheet?.addEventListener('touchend', (event) => {
             if (touchStartY === null || touchLatestY === null) {
                 touchStartY = null;
                 touchLatestY = null;
@@ -2501,9 +2511,15 @@
 
             const deltaY = touchLatestY - touchStartY;
             const canCollapse = !state.detailStoryExpanded || touchStartScrollTop <= 2;
+            const isHintTap = Math.abs(deltaY) < 8 && event.target.closest?.('.detail-more-hint');
             storySheet.classList.remove('dragging');
             touchStartY = null;
             touchLatestY = null;
+
+            if (isHintTap) {
+                setDetailStoryExpanded(true);
+                return;
+            }
 
             if (deltaY < -dragThreshold) {
                 setDetailStoryExpanded(true);
@@ -2528,6 +2544,15 @@
             if (event.key === 'ArrowDown' || event.key === 'Escape') {
                 event.preventDefault();
                 setDetailStoryExpanded(false);
+            }
+        });
+        storyMoreHint?.addEventListener('click', () => {
+            setDetailStoryExpanded(true);
+        });
+        storyMoreHint?.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                setDetailStoryExpanded(true);
             }
         });
         storyScroll?.addEventListener('scroll', updateStoryMoreHint, { passive: true });
