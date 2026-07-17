@@ -2394,23 +2394,19 @@
                              alt="${escapeHtml(state.currentMood.title)}">
                     </div>
                     <section class="detail-story-sheet ${storyExpanded ? 'expanded' : ''}"
-                             aria-label="${escapeHtml(state.currentMood.title)} 이야기">
+                             aria-label="${escapeHtml(state.currentMood.title)} 이야기"
+                             aria-expanded="${storyExpanded ? 'true' : 'false'}"
+                             tabindex="0">
                         <div class="detail-story-scroll">
                             <p class="detail-story">${displayContent}</p>
                         </div>
                         <div class="detail-more-hint" aria-hidden="true">⌄</div>
-                        <button class="detail-toggle-btn ${state.currentTab}"
-                                type="button"
-                                aria-expanded="${storyExpanded ? 'true' : 'false'}">
-                            ${storyExpanded ? '이야기 접기' : '이야기 더 보기'}
-                        </button>
                     </section>
                 </div>
             </div>
         `;
 
-        // Toggle story sheet event
-        const toggleBtn = elements.mainContent.querySelector('.detail-toggle-btn');
+        // Drag story sheet event
         const storySheet = elements.mainContent.querySelector('.detail-story-sheet');
         const storyScroll = elements.mainContent.querySelector('.detail-story-scroll');
         const updateStoryMoreHint = () => {
@@ -2422,11 +2418,59 @@
             const isAtEnd = storyScroll.scrollTop + storyScroll.clientHeight >= storyScroll.scrollHeight - 2;
             storySheet.classList.toggle('has-more', hasOverflow && !isAtEnd);
         };
-        const toggleDetailStory = () => {
-            state.detailStoryExpanded = !state.detailStoryExpanded;
+        const setDetailStoryExpanded = (expanded) => {
+            if (state.detailStoryExpanded === expanded) {
+                return;
+            }
+
+            state.detailStoryExpanded = expanded;
             renderDetail();
         };
-        toggleBtn.addEventListener('click', toggleDetailStory);
+
+        let dragStartY = null;
+        let dragStartScrollTop = 0;
+        const dragThreshold = 44;
+
+        storySheet?.addEventListener('pointerdown', (event) => {
+            dragStartY = event.clientY;
+            dragStartScrollTop = storyScroll?.scrollTop || 0;
+            storySheet.setPointerCapture?.(event.pointerId);
+            storySheet.classList.add('dragging');
+        }, { capture: true });
+        storySheet?.addEventListener('pointerup', (event) => {
+            if (dragStartY === null) {
+                return;
+            }
+
+            const deltaY = event.clientY - dragStartY;
+            const canCollapse = !state.detailStoryExpanded || dragStartScrollTop <= 2;
+            storySheet.classList.remove('dragging');
+            dragStartY = null;
+
+            if (deltaY < -dragThreshold) {
+                setDetailStoryExpanded(true);
+                return;
+            }
+
+            if (deltaY > dragThreshold && canCollapse) {
+                setDetailStoryExpanded(false);
+            }
+        });
+        storySheet?.addEventListener('pointercancel', () => {
+            storySheet.classList.remove('dragging');
+            dragStartY = null;
+        });
+        storySheet?.addEventListener('keydown', (event) => {
+            if (event.key === 'ArrowUp') {
+                event.preventDefault();
+                setDetailStoryExpanded(true);
+            }
+
+            if (event.key === 'ArrowDown' || event.key === 'Escape') {
+                event.preventDefault();
+                setDetailStoryExpanded(false);
+            }
+        });
         storyScroll?.addEventListener('scroll', updateStoryMoreHint, { passive: true });
         requestAnimationFrame(updateStoryMoreHint);
     }

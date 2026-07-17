@@ -539,7 +539,7 @@ body {
     display: flex;
     flex-direction: column;
     gap: 4px;
-    max-height: 180px;
+    max-height: 128px;
     overflow: hidden;
     padding: 14px 16px;
     border: 1px solid var(--color-border);
@@ -547,6 +547,7 @@ body {
     background: rgba(255, 255, 255, 0.96);
     box-shadow: var(--shadow-card);
     transition: max-height var(--transition-normal), padding var(--transition-normal);
+    touch-action: pan-y;
 }
 
 .detail-story-sheet.has-more .detail-story-scroll {
@@ -562,6 +563,10 @@ body {
     max-height: min(52vh, 480px);
 }
 
+.detail-story-sheet.dragging {
+    transition-duration: 0.01ms;
+}
+
 .detail-story-sheet.expanded .detail-story-scroll {
     flex: 1 1 auto;
     overflow-y: auto;
@@ -572,50 +577,6 @@ body {
 .detail-story-sheet:not(.expanded) .detail-story-scroll {
     max-height: 4.35em;
     overflow: hidden;
-}
-
-.detail-toggle-btn {
-    align-self: center;
-    flex: 0 0 auto;
-    min-width: 140px;
-    min-height: 44px;
-    padding: 10px 18px;
-    font-size: 1rem;
-    font-weight: 500;
-    border: none;
-    border-radius: 999px;
-    cursor: pointer;
-    transition: all var(--transition-fast);
-    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.12);
-}
-
-.detail-toggle-btn.yellow {
-    background-color: var(--color-yellow);
-    color: #333;
-}
-
-.detail-toggle-btn.green {
-    background-color: var(--color-green);
-    color: white;
-}
-
-.detail-toggle-btn.blue {
-    background-color: var(--color-blue);
-    color: white;
-}
-
-.detail-toggle-btn.red {
-    background-color: var(--color-red);
-    color: white;
-}
-
-.detail-toggle-btn:hover {
-    opacity: 0.9;
-}
-
-.detail-toggle-btn:active {
-    transform: translateY(1px);
-    opacity: 0.8;
 }
 
 /* Loading State */
@@ -2078,14 +2039,8 @@ body {
     }
 
     .detail-story-sheet {
-        max-height: 164px;
+        max-height: 128px;
         padding: 12px 14px;
-    }
-
-    .detail-toggle-btn {
-        padding-left: 12px;
-        padding-right: 12px;
-        font-size: 0.875rem;
     }
 }
 
@@ -2135,7 +2090,7 @@ body {
     }
 
     .detail-story-sheet {
-        max-height: 208px;
+        max-height: 166px;
         padding: 18px 20px;
     }
 
@@ -2170,7 +2125,7 @@ body {
 .back-btn:focus-visible,
 .quiz-header-btn:focus-visible,
 .settings-header-btn:focus-visible,
-.detail-toggle-btn:focus-visible,
+.detail-story-sheet:focus-visible,
 .settings-input:focus-visible,
 .cloud-email-input:focus-visible,
 .settings-btn:focus-visible,
