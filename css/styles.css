@@ -547,7 +547,7 @@ body {
     background: rgba(255, 255, 255, 0.96);
     box-shadow: var(--shadow-card);
     transition: max-height var(--transition-normal), padding var(--transition-normal);
-    touch-action: pan-y;
+    touch-action: none;
 }
 
 .detail-story-sheet.has-more .detail-story-scroll {
@@ -561,6 +561,7 @@ body {
 
 .detail-story-sheet.expanded {
     max-height: min(52vh, 480px);
+    touch-action: pan-y;
 }
 
 .detail-story-sheet.dragging {

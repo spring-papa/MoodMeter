@@ -2429,6 +2429,9 @@
 
         let dragStartY = null;
         let dragStartScrollTop = 0;
+        let touchStartY = null;
+        let touchStartScrollTop = 0;
+        let touchLatestY = null;
         const dragThreshold = 44;
 
         storySheet?.addEventListener('pointerdown', (event) => {
@@ -2459,6 +2462,62 @@
         storySheet?.addEventListener('pointercancel', () => {
             storySheet.classList.remove('dragging');
             dragStartY = null;
+        });
+        storySheet?.addEventListener('touchstart', (event) => {
+            const touch = event.touches[0];
+            if (!touch) {
+                return;
+            }
+
+            touchStartY = touch.clientY;
+            touchLatestY = touch.clientY;
+            touchStartScrollTop = storyScroll?.scrollTop || 0;
+            storySheet.classList.add('dragging');
+        }, { passive: true });
+        storySheet?.addEventListener('touchmove', (event) => {
+            if (touchStartY === null) {
+                return;
+            }
+
+            const touch = event.touches[0];
+            if (!touch) {
+                return;
+            }
+
+            touchLatestY = touch.clientY;
+            const deltaY = touchLatestY - touchStartY;
+            const shouldControlSheet = !state.detailStoryExpanded || (touchStartScrollTop <= 2 && deltaY > 0);
+            if (shouldControlSheet) {
+                event.preventDefault();
+            }
+        }, { passive: false });
+        storySheet?.addEventListener('touchend', () => {
+            if (touchStartY === null || touchLatestY === null) {
+                touchStartY = null;
+                touchLatestY = null;
+                storySheet.classList.remove('dragging');
+                return;
+            }
+
+            const deltaY = touchLatestY - touchStartY;
+            const canCollapse = !state.detailStoryExpanded || touchStartScrollTop <= 2;
+            storySheet.classList.remove('dragging');
+            touchStartY = null;
+            touchLatestY = null;
+
+            if (deltaY < -dragThreshold) {
+                setDetailStoryExpanded(true);
+                return;
+            }
+
+            if (deltaY > dragThreshold && canCollapse) {
+                setDetailStoryExpanded(false);
+            }
+        });
+        storySheet?.addEventListener('touchcancel', () => {
+            storySheet.classList.remove('dragging');
+            touchStartY = null;
+            touchLatestY = null;
         });
         storySheet?.addEventListener('keydown', (event) => {
             if (event.key === 'ArrowUp') {
