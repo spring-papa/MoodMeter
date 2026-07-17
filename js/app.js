@@ -23,6 +23,22 @@
         blue: '파랑',
         red: '빨강'
     };
+    const QUIZ_SIMILAR_MOOD_KEY_GROUPS = [
+        ['upbeat', 'optimistic', 'hopeful'],
+        ['joyful', 'blissful', 'pleasant', 'cheerful', 'happy', 'ecstatic'],
+        ['energized', 'hyper', 'exhilarated', 'enthusiastic', 'thrilled', 'lively', 'festive', 'excited'],
+        ['motivated', 'elated', 'proud'],
+        ['pleased', 'satisfied', 'complacent', 'content', 'fulfilled'],
+        ['touched', 'grateful', 'loving', 'mellow', 'blessed'],
+        ['serene', 'carefree', 'chill', 'at ease', 'cozy', 'balanced', 'relaxed', 'easygoing', 'restful', 'comfortable', 'tranquil', 'peaceful', 'calm'],
+        ['sleepy', 'exhausted', 'spent', 'fatigued', 'drained', 'tired'],
+        ['hopeless', 'discouraged', 'pessimistic', 'disappointed', 'despair', 'frustrated', 'down'],
+        ['desolate', 'alienated', 'sad', 'morose', 'lonely', 'depressed', 'glum', 'sullen', 'miserable'],
+        ['disgusted', 'repulsed'],
+        ['annoyed', 'livid', 'enraged', 'furious', 'peeved', 'irritated', 'fuming', 'angry'],
+        ['frightened', 'panicked', 'worried', 'uneasy', 'nervous', 'stressed', 'tense', 'restless', 'anxious', 'concerned', 'apprehensive', 'jittery'],
+        ['surprised', 'stunned', 'shocked']
+    ];
 
     // App State
     const state = {
@@ -563,17 +579,38 @@
     }
 
     function createQuizOptions(correctMood, allMoods) {
-        const sameTabDistractors = shuffleArray(allMoods.filter(mood => {
+        const sameTabCandidates = allMoods.filter(mood => {
             return mood.tab === correctMood.tab && mood.moodId !== correctMood.moodId;
-        }));
-        const otherDistractors = shuffleArray(allMoods.filter(mood => {
+        });
+        const otherCandidates = allMoods.filter(mood => {
             return mood.tab !== correctMood.tab && mood.moodId !== correctMood.moodId;
-        }));
+        });
+        const sameTabDistractors = shuffleArray(sameTabCandidates.filter(mood => !isQuizSimilarMood(correctMood, mood)));
+        const otherDistractors = shuffleArray(otherCandidates.filter(mood => !isQuizSimilarMood(correctMood, mood)));
         const distractors = [...sameTabDistractors.slice(0, 2), ...otherDistractors]
             .filter((mood, index, array) => array.findIndex(item => item.moodId === mood.moodId) === index)
             .slice(0, QUIZ_OPTION_COUNT - 1);
 
         return shuffleArray([correctMood, ...distractors]);
+    }
+
+    function isQuizSimilarMood(correctMood, candidateMood) {
+        if (!correctMood || !candidateMood || correctMood.moodId === candidateMood.moodId) return true;
+
+        const correctTitle = normalizeMoodTitleForQuiz(correctMood.title);
+        const candidateTitle = normalizeMoodTitleForQuiz(candidateMood.title);
+        if (correctTitle && correctTitle === candidateTitle) return true;
+
+        return QUIZ_SIMILAR_MOOD_KEY_GROUPS.some(group => {
+            return group.includes(correctMood.key) && group.includes(candidateMood.key);
+        });
+    }
+
+    function normalizeMoodTitleForQuiz(title) {
+        return getMoodDisplayTitle(title)
+            .replace(/^마음이\s*/u, '')
+            .replace(/\s+/gu, '')
+            .trim();
     }
 
     function shuffleArray(items) {
